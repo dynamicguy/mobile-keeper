@@ -25314,17 +25314,11 @@ Ext.define('Ext.app.Application', {
 
 });
 
-/**
- * This view shows the 'Initializing' loading mask, as well as displaying the Login text and button
- * if the user isn't logged in to Facebook.
- */
 Ext.define('JWF.view.Login', {
     extend: 'Ext.Container',
-
     config: {
         padding: 20,
         layout: 'fit',
-
         items: [
             {
                 docked: 'top',
@@ -25333,137 +25327,362 @@ Ext.define('JWF.view.Login', {
             }
         ]
     },
-
     showLoginText: function() {
-
         var redirectUrl = Ext.Object.toQueryString({
             redirect_uri: window.location.protocol + "//" + window.location.host + window.location.pathname,
             client_id: JWF.app.facebookAppId,
             response_type: 'token'
         });
-
         this.setHtml([
-            '<h2>Welcome to Jog with Friends</h2>',
+            '<h2>Welcome to Mobile Keeper with Friends</h2>',
             '<p>With this app you can log your runs and share your progress with your friends</p>',
             '<p>In order to use Jog with Friends you must sign in with your Facebook account.</p>',
             '<a class="fbLogin" href="https://m.facebook.com/dialog/oauth?' + redirectUrl + '"></a>',
             '<div class="fb-facepile" data-app-id="' + JWF.app.facebookAppId + '" data-max-rows="2" data-width="300"></div>'
         ].join(''));
-
          FB.XFBML.parse(document.getElementById('splash'));
     }
 });
 
-/**
- * The class controls the adding of new Runs to the database.
- */
-Ext.define('JWF.controller.Runs', {
-    extend: 'Ext.app.Controller',
+Ext.define('JWF.controller.Posts', {
+    extend:'Ext.app.Controller',
 
-    config: {
-        control: {
-            '#addRunButton': {
-                tap: 'addRun'
+    config:{
+        refs:{
+            main:'mainview',
+            editButton:'#editButton',
+            posts:'posts',
+            showPost:'post-show',
+            editPost:'post-edit',
+            saveButton:'#saveButton'
+        },
+
+        control:{
+            main:{
+                push:'onMainPush',
+                pop:'onMainPop'
             },
-            '#showFormButton': {
-                tap: 'showForm'
+            editButton:{
+                tap:'onPostEdit'
             },
-            '#addRunBackBtn': {
-                tap: 'hideForm'
+            posts:{
+                itemtap:'onPostSelect'
+            },
+            saveButton:{
+                tap:'onPostSave'
+            },
+            editPost:{
+                change:'onPostChange'
+            },
+            '#addPostButton':{
+                tap:'addPost'
+            },
+            '#showFormButton':{
+                tap:'showForm'
+            },
+            '#addPostBackBtn':{
+                tap:'hideForm'
             }
         }
     },
 
-    init: function() {
-        this.callParent();
+    onMainPush:function (view, item) {
+        var editButton = this.getEditButton();
 
-        Ext.getStore('Runs').on('load', this.onRunsLoad);
+        if (item.xtype == "post-show") {
+            this.getPosts().deselectAll();
+
+            this.showEditButton();
+        } else {
+            this.hideEditButton();
+        }
     },
 
-    onRunsLoad: function(store) {
+    onMainPop:function (view, item) {
+        if (item.xtype == "post-edit") {
+            this.showEditButton();
+        } else {
+            this.hideEditButton();
+        }
+    },
 
+    onPostSelect:function (list, index, node, record) {
+        var editButton = this.getEditButton();
+
+        if (!this.showPost) {
+            this.showPost = Ext.create('JWF.view.post.Show');
+        }
+
+        // Bind the record onto the show post view
+        this.showPost.setRecord(record);
+
+        // Push the show post view into the navigation view
+        this.getMain().push(this.showPost);
+    },
+
+    onPostEdit:function () {
+        if (!this.editPost) {
+            this.editPost = Ext.create('JWF.view.post.Edit');
+        }
+
+        // Bind the record onto the edit post view
+        this.editPost.setRecord(this.getShowPost().getRecord());
+
+        this.getMain().push(this.editPost);
+    },
+
+    onPostChange:function () {
+        this.showSaveButton();
+    },
+
+    onPostSave:function () {
+        var record = this.getEditPost().saveRecord();
+
+        this.getShowPost().updateRecord(record);
+
+        this.getMain().pop();
+    },
+
+    showEditButton:function () {
+        var editButton = this.getEditButton();
+
+        if (!editButton.isHidden()) {
+            return;
+        }
+
+        this.hideSaveButton();
+
+        editButton.show();
+    },
+
+    hideEditButton:function () {
+        var editButton = this.getEditButton();
+
+        if (editButton.isHidden()) {
+            return;
+        }
+
+        editButton.hide();
+    },
+
+    showSaveButton:function () {
+        var saveButton = this.getSaveButton();
+
+        if (!saveButton.isHidden()) {
+            return;
+        }
+
+        saveButton.show();
+    },
+
+    hideSaveButton:function () {
+        var saveButton = this.getSaveButton();
+
+        if (saveButton.isHidden()) {
+            return;
+        }
+
+        saveButton.hide();
+    },
+
+    init:function () {
+        this.callParent();
+        //Ext.getStore('Posts').on('load', this.onPostsLoad);
+    },
+
+    onPostsLoad:function (store) {
         var main = Ext.getCmp('main'),
-            runList = Ext.getCmp('runList'),
+            postList = Ext.getCmp('postList'),
             noFriends = Ext.getCmp('noFriends');
-
         if (store.getCount()) {
-            if (!runList) {
-                runList = Ext.create('JWF.view.run.List', {
-                    id: 'runList'
+            if (!postList) {
+                postList = Ext.create('JWF.view.post.List', {
+                    id:'postList'
                 });
             }
-            main.setActiveItem(runList);
+            main.setActiveItem(postList);
         } else {
             if (!noFriends) {
                 noFriends = Ext.create('JWF.view.NoFriends', {
-                    id: 'noFriends',
-                    data: JWF.userData
+                    id:'noFriends',
+                    data:JWF.userData
                 });
             }
             main.setActiveItem(noFriends);
         }
     },
 
-    showForm: function() {
-        if (!this.addRunForm) {
-            this.addRunForm = Ext.create('JWF.view.Form', {
-                id: 'runForm'
+    showForm:function () {
+        if (!this.addPostForm) {
+            this.addPostForm = Ext.create('JWF.view.PostForm', {
+                id:'postForm'
             });
         }
-        Ext.Viewport.setActiveItem(this.addRunForm);
+        Ext.Viewport.setActiveItem(this.addPostForm);
     },
 
-    hideForm: function() {
+    hideForm:function () {
         Ext.Viewport.setActiveItem(Ext.getCmp('main'));
-        Ext.getCmp('runForm').hide();
+        Ext.getCmp('postForm').hide();
     },
 
-    addRun: function() {
-
-        var distance = Ext.getCmp('distanceField').getValue(),
-            location = Ext.getCmp('locationField').getValue(),
-            caption = JWF.userData.first_name + ' ran ' + distance + ' miles';
-
-        if (location) {
-            caption += ' in ' + location;
-        }
-
-        Ext.getCmp('runForm').setMasked({
-            xtype: 'loadmask',
-            message: 'Adding New Jog...'
+    addPost:function () {
+        var latitude = Ext.getCmp('latitudeField').getValue(),
+            longitude = Ext.getCmp('longitudeField').getValue(),
+            description = Ext.getCmp('descriptionField').getValue();
+        Ext.getCmp('postForm').setMasked({
+            xtype:'loadmask',
+            message:'Adding New Post...'
         });
-
         Ext.Ajax.request({
-            url: '/run',
-            method: 'POST',
-            params: {
-                location: location,
-                distance: distance
+            url:'/post',
+            method:'POST',
+            params:{
+                latitude:latitude,
+                longitude:longitude,
+                description:description
             },
-            callback: this.onAddRun,
-            scope: this
+            callback:this.onAddPost,
+            scope:this
         });
     },
 
-    onAddRun: function(options, success, response) {
-        Ext.getCmp('runForm').setMasked(false);
+    onAddPost:function (options, success, response) {
+        Ext.getCmp('postForm').setMasked(false);
         this.hideForm();
-        Ext.getStore('Runs').load();
+        Ext.getStore('Posts').load();
     }
 });
 
-/**
- * This screen is displayed if the user has no friends.
- */
+Ext.define('JWF.view.post.Show', {
+    extend:'Ext.Container',
+    xtype:'post-show',
+
+    config:{
+        title:'Information',
+        baseCls:'x-show-post',
+        layout:'vbox',
+
+        items:[
+            {
+                id:'post',
+                tpl:[
+                    '<div class="top">',
+                    '<img class="headshot" src="https://graph.facebook.com/{profileId}/picture?type=square" />',
+                    '<div class="name"><div class="info">{description}</div>',
+                    '<div class="location"><b>{latitude} , {longitude}</b></div>',
+                    '<div class="time">{date}</div>',
+                    '</div></div>'
+                ].join('')
+            },
+            {
+                xtype:'map',
+                flex:1,
+                mapOptions:{
+                    zoomControl:true,
+                    panControl:true,
+                    rotateControl:true,
+                    streetViewControl:true,
+                    mapTypeControl:true,
+                    navigationControl: true,
+                    zoom:13
+                }
+            }
+        ],
+
+        record:null
+    },
+
+    updateRecord:function (newRecord) {
+        if (newRecord) {
+            this.down('#post').setData(newRecord.data);
+            this.down('map').setMapCenter({
+                latitude:newRecord.data.latitude,
+                longitude:newRecord.data.longitude
+            });
+        }
+    }
+});
+
+Ext.define('JWF.view.post.Edit', {
+    extend:'Ext.Container',
+    xtype:'post-edit',
+
+    config:{
+        title:'Edit',
+        layout:'fit',
+
+        items:[
+            {
+                xtype:'formpanel',
+                items:[
+                    {
+                        xtype:'fieldset',
+                        defaults:{
+                            labelWidth:'35%'
+                        },
+                        title:'Information',
+                        items:[
+                            {
+                                xtype:'textfield',
+                                label:'Latitude',
+                                name:'latitude'
+                            },
+                            {
+                                xtype:'textfield',
+                                label:'Longitude',
+                                name:'longitude'
+                            },
+                            {
+                                xtype:'textfield',
+                                label:'Description',
+                                name:'description'
+                            },
+                            {
+                                xtype:'textfield',
+                                label:'Date',
+                                name:'date'
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+
+        listeners:{
+            delegate:'textfield',
+            keyup:'onKeyUp'
+        },
+
+        record:null
+    },
+
+    updateRecord:function (newRecord) {
+        this.down('formpanel').setRecord(newRecord);
+    },
+
+    saveRecord:function () {
+        var formPanel = this.down('formpanel'),
+            record = formPanel.getRecord();
+
+        formPanel.updateRecord(record);
+
+        return record;
+    },
+
+    onKeyUp:function () {
+        this.fireEvent('change', this);
+    }
+});
+
 Ext.define('JWF.view.NoFriends', {
     extend: 'Ext.Container',
-
     config: {
         cls: 'noFriends',
         tpl: [
             '<div class="welcomeNoFriends">',
                 '<img src="https://graph.facebook.com/{id}/picture?type=square" />',
-                'Welcome to Jog with Friends, <b>{first_name}</b>!',
+                'Welcome to Mobile Keeper with Friends, <b>{first_name} {last_name}</b>!',
             '</div>'
         ]
     }
@@ -27303,6 +27522,909 @@ Ext.define('Ext.data.Error', {
 });
 
 /**
+ * {@link Ext.Button} is a simple class to display a button in Sencha Touch. There are various
+ * different styles of {@link Ext.Button} you can create by using the {@link #icon},
+ * {@link #iconCls}, {@link #iconAlign}, {@link #iconMask}, {@link #ui}, and {@link #text}
+ * configurations.
+ *
+ * ## Simple Button
+ *
+ * Here is an {@link Ext.Button} is it's simplist form:
+ *
+ *     @example miniphone
+ *     var button = Ext.create('Ext.Button', {
+ *         text: 'Button'
+ *     });
+ *     Ext.Viewport.add({ xtype: 'container', padding: 10, items: [button] });
+ *
+ * ## Icons
+ *
+ * You can also create a {@link Ext.Button} with just an icon using the {@link #iconCls}
+ * configuration:
+ *
+ *     @example miniphone
+ *     var button = Ext.create('Ext.Button', {
+ *         iconCls: 'refresh',
+ *         iconMask: true
+ *     });
+ *     Ext.Viewport.add({ xtype: 'container', padding: 10, items: [button] });
+ *
+ * Note that the {@link #iconMask} configuration is required when you want to use any of the
+ * bundled Pictos icons.
+ *
+ * Here are the included icons available (if {@link Global_CSS#$include-default-icons $include-default-icons}
+ * is set to true):
+ *
+ * - action
+ * - add
+ * - arrow_down
+ * - arrow_left
+ * - arrow_right
+ * - arrow_up
+ * - compose
+ * - delete
+ * - organize
+ * - refresh
+ * - reply
+ * - search
+ * - settings
+ * - star
+ * - trash
+ * - maps
+ * - locate
+ * - home
+ *
+ * You can also use other pictos icons by using the {@link Global_CSS#pictos-iconmask pictos-iconmask} mixin in your SASS.
+ *
+ * ## Badges
+ *
+ * Buttons can also have a badge on them, by using the {@link #badgeText} configuration:
+ *
+ *     @example
+ *     Ext.create('Ext.Container', {
+ *         fullscreen: true,
+ *         padding: 10,
+ *         items: {
+ *             xtype: 'button',
+ *             text: 'My Button',
+ *             badgeText: '2'
+ *         }
+ *     });
+ *
+ * ## UI
+ *
+ * Buttons also come with a range of different default UIs. Here are the included UIs
+ * available (if {@link #$include-button-uis $include-button-uis} is set to true):
+ *
+ * - **normal** - a basic gray button
+ * - **back** - a back button
+ * - **forward** - a forward button
+ * - **round** - a round button
+ * - **action** - shaded using the {@link Global_CSS#$base-color $base-color} (dark blue by default)
+ * - **decline** - red
+ * - **confirm** - green
+ *
+ * And setting them is very simple:
+ *
+ *     var uiButton = Ext.create('Ext.Button', {
+ *         text: 'My Button',
+ *         ui: 'action'
+ *     });
+ *
+ * And how they look:
+ *
+ *     @example miniphone preview
+ *     Ext.create('Ext.Container', {
+ *         fullscreen: true,
+ *         padding: 4,
+ *         defaults: {
+ *             xtype: 'button',
+ *             margin: 5
+ *         },
+ *         layout: {
+ *             type: 'vbox',
+ *             align: 'center'
+ *         },
+ *         items: [
+ *             { ui: 'normal', text: 'normal' },
+ *             { ui: 'round', text: 'round' },
+ *             { ui: 'action', text: 'action' },
+ *             { ui: 'decline', text: 'decline' },
+ *             { ui: 'confirm', text: 'confirm' }
+ *         ]
+ *     });
+ *
+ * Note that the default {@link #ui} is **normal**.
+ *
+ * You can also use the {@link #sencha-button-ui sencha-button-ui} CSS Mixin to create your own UIs.
+ *
+ * ## Examples
+ *
+ * This example shows a bunch of icons on the screen in two toolbars. When you click on the center
+ * button, it switches the iconCls on every button on the page.
+ *
+ *     @example preview
+ *     Ext.createWidget('container', {
+ *         fullscreen: true,
+ *         layout: {
+ *             type: 'vbox',
+ *             pack:'center',
+ *             align: 'center'
+ *         },
+ *         items: [
+ *             {
+ *                 xtype: 'button',
+ *                 text: 'Change iconCls',
+ *                 handler: function() {
+ *                     // classes for all the icons to loop through.
+ *                     var availableIconCls = [
+ *                         'action', 'add', 'arrow_down', 'arrow_left',
+ *                         'arrow_right', 'arrow_up', 'compose', 'delete',
+ *                         'organize', 'refresh', 'reply', 'search',
+ *                         'settings', 'star', 'trash', 'maps', 'locate',
+ *                         'home'
+ *                     ];
+ *                     // get the text of this button,
+ *                     // so we know which button we don't want to change
+ *                     var text = this.getText();
+ *
+ *                     // use ComponentQuery to find all buttons on the page
+ *                     // and loop through all of them
+ *                     Ext.Array.forEach(Ext.ComponentQuery.query('button'), function(button) {
+ *                         // if the button is the change iconCls button, continue
+ *                         if (button.getText() == text) {
+ *                             return;
+ *                         }
+ *
+ *                         // get the index of the new available iconCls
+ *                         var index = availableIconCls.indexOf(button.getIconCls()) + 1;
+ *
+ *                         // update the iconCls of the button with the next iconCls, if one exists.
+ *                         // if not, use the first one
+ *                         button.setIconCls(availableIconCls[(index == availableIconCls.length) ? 0 : index]);
+ *                     });
+ *                 }
+ *             },
+ *             {
+ *                 xtype: 'toolbar',
+ *                 docked: 'top',
+ *                 defaults: {
+ *                     iconMask: true
+ *                 },
+ *                 items: [
+ *                     { xtype: 'spacer' },
+ *                     { iconCls: 'action' },
+ *                     { iconCls: 'add' },
+ *                     { iconCls: 'arrow_down' },
+ *                     { iconCls: 'arrow_left' },
+ *                     { iconCls: 'arrow_up' },
+ *                     { iconCls: 'compose' },
+ *                     { iconCls: 'delete' },
+ *                     { iconCls: 'organize' },
+ *                     { iconCls: 'refresh' },
+ *                     { xtype: 'spacer' }
+ *                 ]
+ *             },
+ *             {
+ *                 xtype: 'toolbar',
+ *                 docked: 'bottom',
+ *                 ui: 'light',
+ *                 defaults: {
+ *                     iconMask: true
+ *                 },
+ *                 items: [
+ *                     { xtype: 'spacer' },
+ *                     { iconCls: 'reply' },
+ *                     { iconCls: 'search' },
+ *                     { iconCls: 'settings' },
+ *                     { iconCls: 'star' },
+ *                     { iconCls: 'trash' },
+ *                     { iconCls: 'maps' },
+ *                     { iconCls: 'locate' },
+ *                     { iconCls: 'home' },
+ *                     { xtype: 'spacer' }
+ *                 ]
+ *             }
+ *         ]
+ *     });
+ *
+ */
+Ext.define('Ext.Button', {
+    extend: 'Ext.Component',
+
+    xtype: 'button',
+
+    /**
+     * @event tap
+     * @preventable doTap
+     * Fires whenever a button is tapped
+     * @param {Ext.Button} this The item added to the Container
+     * @param {Ext.EventObject} e The event object
+     */
+
+    /**
+     * @event release
+     * @preventable doRelease
+     * Fires whenever the button is released
+     * @param {Ext.Button} this The item added to the Container
+     * @param {Ext.EventObject} e The event object
+     */
+
+    cachedConfig: {
+        /**
+         * @cfg {String} pressedCls
+         * The CSS class to add to the Button when it is pressed.
+         * @accessor
+         */
+        pressedCls: Ext.baseCSSPrefix + 'button-pressing',
+
+        /**
+         * @cfg {String} badgeCls
+         * The CSS class to add to the Button's badge, if it has one.
+         * @accessor
+         */
+        badgeCls: Ext.baseCSSPrefix + 'badge',
+
+        /**
+         * @cfg {String} hasBadgeCls
+         * The CSS class to add to the Button if it has a badge (note that this goes on the
+         * Button element itself, not on the badge element).
+         * @private
+         * @accessor
+         */
+        hasBadgeCls: Ext.baseCSSPrefix + 'hasbadge',
+
+        /**
+         * @cfg {String} labelCls
+         * The CSS class to add to the field's label element.
+         * @accessor
+         */
+        labelCls: Ext.baseCSSPrefix + 'button-label',
+
+        /**
+         * @cfg {String} iconMaskCls
+         * @private
+         * The CSS class to add to the icon element as allowed by {@link #iconMask}.
+         * @accessor
+         */
+        iconMaskCls: Ext.baseCSSPrefix + 'icon-mask',
+
+        /**
+         * @cfg {String} iconCls
+         * Optional CSS class to add to the icon element. This is useful if you want to use a CSS
+         * background image to create your Button icon.
+         * @accessor
+         */
+        iconCls: null
+    },
+
+    config: {
+        /**
+         * @cfg {String} badgeText
+         * Optional badge text.
+         * @accessor
+         */
+        badgeText: null,
+
+        /**
+         * @cfg {String} text
+         * The Button text.
+         * @accessor
+         */
+        text: null,
+
+        /**
+         * @cfg {String} icon
+         * Url to the icon image to use if you want an icon to appear on your button.
+         * @accessor
+         */
+        icon: null,
+
+        /**
+         * @cfg {String} iconAlign
+         * The position within the Button to render the icon Options are: `top`, `right`, `bottom`, `left` and `center` (when you have
+         * no {@link #text} set).
+         * @accessor
+         */
+        iconAlign: 'left',
+
+        /**
+         * @cfg {Number/Boolean} pressedDelay
+         * The amount of delay between the tapstart and the moment we add the pressedCls (in milliseconds).
+         * Settings this to true defaults to 100ms.
+         */
+        pressedDelay: 0,
+
+        /**
+         * @cfg {Boolean} iconMask
+         * Whether or not to mask the icon with the {@link #iconMask} configuration.
+         * This is needed if you want to use any of the bundled pictos icons in the Sencha Touch SASS.
+         * @accessor
+         */
+        iconMask: null,
+
+        /**
+         * @cfg {Function} handler
+         * The handler function to run when the Button is tapped on.
+         * @accessor
+         */
+        handler: null,
+
+        /**
+         * @cfg {Object} scope
+         * The scope to fire the configured {@link #handler} in.
+         * @accessor
+         */
+        scope: null,
+
+        /**
+         * @cfg {String} autoEvent
+         * Optional event name that will be fired instead of 'tap' when the Button is tapped on.
+         * @accessor
+         */
+        autoEvent: null,
+
+        /**
+         * @cfg {String} ui
+         * The ui style to render this button with. The valid default options are:
+         * 'normal', 'back', 'round', 'action', 'confirm' and 'forward'.
+         * @accessor
+         */
+        ui: 'normal',
+
+        /**
+         * @cfg {String} html The html to put in this button.
+         *
+         * If you want to just add text, please use the {@link #text} configuration
+         */
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'button'
+    },
+
+    template: [
+        {
+            tag: 'span',
+            reference: 'badgeElement',
+            hidden: true
+        },
+        {
+            tag: 'span',
+            className: Ext.baseCSSPrefix + 'button-icon',
+            reference: 'iconElement',
+            hidden: true
+        },
+        {
+            tag: 'span',
+            reference: 'textElement',
+            hidden: true
+        }
+    ],
+
+    initialize: function() {
+        this.callParent();
+
+        this.element.on({
+            scope      : this,
+            tap        : 'onTap',
+            touchstart : 'onPress',
+            touchend   : 'onRelease'
+        });
+    },
+
+    /**
+     * @private
+     */
+    updateBadgeText: function(badgeText) {
+        var element = this.element,
+            badgeElement = this.badgeElement;
+
+        if (badgeText) {
+            badgeElement.show();
+            badgeElement.setText(badgeText);
+        }
+        else {
+            badgeElement.hide();
+        }
+
+        element[(badgeText) ? 'addCls' : 'removeCls'](this.getHasBadgeCls());
+    },
+
+    /**
+     * @private
+     */
+    updateText: function(text) {
+        var textElement = this.textElement;
+        if (textElement) {
+            if (text) {
+                textElement.show();
+                textElement.setHtml(text);
+            }
+            else {
+                textElement.hide();
+            }
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateHtml: function(html) {
+        var textElement = this.textElement;
+
+        if (html) {
+            textElement.show();
+            textElement.setHtml(html);
+        }
+        else {
+            textElement.hide();
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateBadgeCls: function(badgeCls, oldBadgeCls) {
+        this.badgeElement.replaceCls(oldBadgeCls, badgeCls);
+    },
+
+    /**
+     * @private
+     */
+    updateHasBadgeCls: function(hasBadgeCls, oldHasBadgeCls) {
+        var element = this.element;
+
+        if (element.hasCls(oldHasBadgeCls)) {
+            element.replaceCls(oldHasBadgeCls, hasBadgeCls);
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateLabelCls: function(labelCls, oldLabelCls) {
+        this.textElement.replaceCls(oldLabelCls, labelCls);
+    },
+
+    /**
+     * @private
+     */
+    updatePressedCls: function(pressedCls, oldPressedCls) {
+        var element = this.element;
+
+        if (element.hasCls(oldPressedCls)) {
+            element.replaceCls(oldPressedCls, pressedCls);
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateIcon: function(icon) {
+        var me = this,
+            element = me.iconElement;
+
+        if (icon) {
+            me.showIconElement();
+            element.setStyle('background-image', icon ? 'url(' + icon + ')' : '');
+            me.refreshIconAlign();
+            me.refreshIconMask();
+        }
+        else {
+            me.hideIconElement();
+            me.setIconAlign(false);
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateIconCls: function(iconCls, oldIconCls) {
+        var me = this,
+            element = me.iconElement;
+
+        if (iconCls) {
+            me.showIconElement();
+            element.replaceCls(oldIconCls, iconCls);
+            me.refreshIconAlign();
+            me.refreshIconMask();
+        }
+        else {
+            me.hideIconElement();
+            me.setIconAlign(false);
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateIconAlign: function(alignment, oldAlignment) {
+        var element = this.element,
+            baseCls = Ext.baseCSSPrefix + 'iconalign-';
+
+        if (!this.getText()) {
+            alignment = "center";
+        }
+
+        element.removeCls(baseCls + "center");
+        element.removeCls(baseCls + oldAlignment);
+        if (this.getIcon() || this.getIconCls()) {
+            element.addCls(baseCls + alignment);
+        }
+    },
+
+    refreshIconAlign: function() {
+        this.updateIconAlign(this.getIconAlign());
+    },
+
+    /**
+     * @private
+     */
+    updateIconMaskCls: function(iconMaskCls, oldIconMaskCls) {
+        var element = this.iconElement;
+
+        if (this.getIconMask()) {
+            element.replaceCls(oldIconMaskCls, iconMaskCls);
+        }
+    },
+
+    /**
+     * @private
+     */
+    updateIconMask: function(iconMask) {
+        this.iconElement[iconMask ? "addCls" : "removeCls"](this.getIconMaskCls());
+    },
+
+    refreshIconMask: function() {
+        this.updateIconMask(this.getIconMask());
+    },
+
+    applyAutoEvent: function(autoEvent) {
+        var me = this;
+
+        if (typeof autoEvent == 'string') {
+            autoEvent = {
+                name : autoEvent,
+                scope: me.scope || me
+            };
+        }
+
+        return autoEvent;
+    },
+
+    /**
+     * @private
+     */
+    updateAutoEvent: function(autoEvent) {
+        var name  = autoEvent.name,
+            scope = autoEvent.scope;
+
+        this.setHandler(function() {
+            scope.fireEvent(name, scope, this);
+        });
+
+        this.setScope(scope);
+    },
+
+    /**
+     * Used by icon and iconCls configurations to hide the icon element.
+     * We do this because Tab needs to change the visibility of the icon, not make
+     * it display:none
+     * @private
+     */
+    hideIconElement: function() {
+        this.iconElement.hide();
+    },
+
+    /**
+     * Used by icon and iconCls configurations to show the icon element.
+     * We do this because Tab needs to change the visibility of the icon, not make
+     * it display:node
+     * @private
+     */
+    showIconElement: function() {
+        this.iconElement.show();
+    },
+
+    /**
+     * We override this to check for '{ui}-back'. This is because if you have a UI of back, you need to actually add two class names.
+     * The ui class, and the back class:
+     *
+     * `ui: 'action-back'` would turn into:
+     *
+     * `class="x-button-action x-button-back"`
+     *
+     * But `ui: 'action' would turn into:
+     *
+     * `class="x-button-action"`
+     *
+     * So we just split it up into an array and add both of them as a UI, when it has `back`.
+     * @private
+     */
+    applyUi: function(config) {
+        if (config && Ext.isString(config)) {
+            var array  = config.split('-');
+            if (array && (array[1] == "back" || array[1] == "forward")) {
+                return array;
+            }
+        }
+
+        return config;
+    },
+
+    getUi: function() {
+        //Now that the UI can sometimes be an array, we need to check if it an array and return the proper value.
+        var ui = this._ui;
+        if (Ext.isArray(ui)) {
+            return ui.join('-');
+        }
+        return ui;
+    },
+
+    applyPressedDelay: function(delay) {
+        if (Ext.isNumber(delay)) {
+            return delay;
+        }
+        return (delay) ? 100 : 0;
+    },
+
+    // @private
+    onPress: function() {
+        var me = this,
+            element = me.element,
+            pressedDelay = me.getPressedDelay(),
+            pressedCls = me.getPressedCls();
+
+        if (!me.getDisabled()) {
+            if (pressedDelay > 0) {
+                me.pressedTimeout = setTimeout(function() {
+                    delete me.pressedTimeout;
+                    if (element) {
+                        element.addCls(pressedCls);
+                    }
+                }, pressedDelay);
+            }
+            else {
+                element.addCls(pressedCls);
+            }
+        }
+    },
+
+    // @private
+    onRelease: function(e) {
+        this.fireAction('release', [this, e], 'doRelease');
+    },
+
+    // @private
+    doRelease: function(me, e) {
+        if (!me.getDisabled()) {
+            if (me.hasOwnProperty('pressedTimeout')) {
+                clearTimeout(me.pressedTimeout);
+                delete me.pressedTimeout;
+            }
+            else {
+                me.element.removeCls(me.getPressedCls());
+            }
+        }
+    },
+
+    // @private
+    onTap: function(e) {
+        if (this.getDisabled()) {
+            return false;
+        }
+
+        this.fireAction('tap', [this, e], 'doTap');
+    },
+
+    /**
+     * @private
+     */
+    doTap: function(me, e) {
+        var handler = me.getHandler(),
+            scope = me.getScope() || me;
+
+        if (!handler) {
+            return;
+        }
+
+        if (typeof handler == 'string') {
+            handler = scope[handler];
+        }
+
+        //this is done so if you hide the button in the handler, the tap event will not fire on the new element
+        //where the button was.
+        e.preventDefault();
+
+        handler.apply(scope, arguments);
+    }
+}, function() {
+
+    /**
+     * Updates the badge text
+     * @method setBadge
+     * @param {String} text
+     * @deprecated 2.0.0 Please use {@link #setBadgeText} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setBadge', 'setBadgeText');
+
+    /**
+     * Updates the icon class
+     * @method setIconClass
+     * @param {String} iconClass
+     * @deprecated 2.0.0 Please use {@link #setIconCls} instead.
+     */
+    Ext.deprecateClassMethod(this, 'setIconClass', 'setIconCls');
+
+    this.override({
+        constructor: function(config) {
+            if (config) {
+                /**
+                 * @cfg {String} badge
+                 * Optional badge text.
+                 * @deprecated 2.0.0 Please use {@link #badgeText} instead
+                 */
+                if (config.hasOwnProperty('badge')) {
+                    Ext.Logger.deprecate("'badge' config is deprecated, please use 'badgeText' config instead", this);
+                    config.badgeText = config.badge;
+                }
+            }
+
+            this.callParent([config]);
+        }
+    });
+
+});
+
+/**
+The {@link Ext.Spacer} component is generally used to put space between items in {@link Ext.Toolbar} components.
+
+## Examples
+
+By default the {@link #flex} configuration is set to 1:
+
+    @example miniphone preview
+    Ext.create('Ext.Container', {
+        fullscreen: true,
+        items: [
+            {
+                xtype : 'toolbar',
+                docked: 'top',
+                items: [
+                    {
+                        xtype: 'button',
+                        text : 'Button One'
+                    },
+                    {
+                        xtype: 'spacer'
+                    },
+                    {
+                        xtype: 'button',
+                        text : 'Button Two'
+                    }
+                ]
+            }
+        ]
+    });
+
+Alternatively you can just set the {@link #width} configuration which will get the {@link Ext.Spacer} a fixed width:
+
+    @example preview
+    Ext.create('Ext.Container', {
+        fullscreen: true,
+        layout: {
+            type: 'vbox',
+            pack: 'center',
+            align: 'stretch'
+        },
+        items: [
+            {
+                xtype : 'toolbar',
+                docked: 'top',
+                items: [
+                    {
+                        xtype: 'button',
+                        text : 'Button One'
+                    },
+                    {
+                        xtype: 'spacer',
+                        width: 50
+                    },
+                    {
+                        xtype: 'button',
+                        text : 'Button Two'
+                    }
+                ]
+            },
+            {
+                xtype: 'container',
+                items: [
+                    {
+                        xtype: 'button',
+                        text : 'Change Ext.Spacer width',
+                        handler: function() {
+                            //get the spacer using ComponentQuery
+                            var spacer = Ext.ComponentQuery.query('spacer')[0],
+                                from = 10,
+                                to = 250;
+
+                            //set the width to a random number
+                            spacer.setWidth(Math.floor(Math.random() * (to - from + 1) + from));
+                        }
+                    }
+                ]
+            }
+        ]
+    });
+
+You can also insert multiple {@link Ext.Spacer}'s:
+
+    @example preview
+    Ext.create('Ext.Container', {
+        fullscreen: true,
+        items: [
+            {
+                xtype : 'toolbar',
+                docked: 'top',
+                items: [
+                    {
+                        xtype: 'button',
+                        text : 'Button One'
+                    },
+                    {
+                        xtype: 'spacer'
+                    },
+                    {
+                        xtype: 'button',
+                        text : 'Button Two'
+                    },
+                    {
+                        xtype: 'spacer',
+                        width: 20
+                    },
+                    {
+                        xtype: 'button',
+                        text : 'Button Three'
+                    }
+                ]
+            }
+        ]
+    });
+ */
+Ext.define('Ext.Spacer', {
+    extend: 'Ext.Component',
+    alias : 'widget.spacer',
+
+    config: {
+        /**
+         * @cfg {Number} flex
+         * The flex value of this spacer. This defaults to 1, if no width has been set.
+         * @accessor
+         */
+        
+        /**
+         * @cfg {Number} width
+         * The width of this spacer. If this is set, the value of {@link #flex} will be ignored.
+         * @accessor
+         */
+    },
+
+    // @private
+    constructor: function(config) {
+        config = config || {};
+
+        if (!config.width) {
+            config.flex = 1;
+        }
+
+        this.callParent([config]);
+    }
+});
+
+/**
  * @aside video list
  * @aside guide list
  *
@@ -28545,909 +29667,6 @@ Ext.define('Ext.data.Connection', {
             aborted: request.aborted,
             timedout: request.timedout
         };
-    }
-});
-
-/**
- * {@link Ext.Button} is a simple class to display a button in Sencha Touch. There are various
- * different styles of {@link Ext.Button} you can create by using the {@link #icon},
- * {@link #iconCls}, {@link #iconAlign}, {@link #iconMask}, {@link #ui}, and {@link #text}
- * configurations.
- *
- * ## Simple Button
- *
- * Here is an {@link Ext.Button} is it's simplist form:
- *
- *     @example miniphone
- *     var button = Ext.create('Ext.Button', {
- *         text: 'Button'
- *     });
- *     Ext.Viewport.add({ xtype: 'container', padding: 10, items: [button] });
- *
- * ## Icons
- *
- * You can also create a {@link Ext.Button} with just an icon using the {@link #iconCls}
- * configuration:
- *
- *     @example miniphone
- *     var button = Ext.create('Ext.Button', {
- *         iconCls: 'refresh',
- *         iconMask: true
- *     });
- *     Ext.Viewport.add({ xtype: 'container', padding: 10, items: [button] });
- *
- * Note that the {@link #iconMask} configuration is required when you want to use any of the
- * bundled Pictos icons.
- *
- * Here are the included icons available (if {@link Global_CSS#$include-default-icons $include-default-icons}
- * is set to true):
- *
- * - action
- * - add
- * - arrow_down
- * - arrow_left
- * - arrow_right
- * - arrow_up
- * - compose
- * - delete
- * - organize
- * - refresh
- * - reply
- * - search
- * - settings
- * - star
- * - trash
- * - maps
- * - locate
- * - home
- *
- * You can also use other pictos icons by using the {@link Global_CSS#pictos-iconmask pictos-iconmask} mixin in your SASS.
- *
- * ## Badges
- *
- * Buttons can also have a badge on them, by using the {@link #badgeText} configuration:
- *
- *     @example
- *     Ext.create('Ext.Container', {
- *         fullscreen: true,
- *         padding: 10,
- *         items: {
- *             xtype: 'button',
- *             text: 'My Button',
- *             badgeText: '2'
- *         }
- *     });
- *
- * ## UI
- *
- * Buttons also come with a range of different default UIs. Here are the included UIs
- * available (if {@link #$include-button-uis $include-button-uis} is set to true):
- *
- * - **normal** - a basic gray button
- * - **back** - a back button
- * - **forward** - a forward button
- * - **round** - a round button
- * - **action** - shaded using the {@link Global_CSS#$base-color $base-color} (dark blue by default)
- * - **decline** - red
- * - **confirm** - green
- *
- * And setting them is very simple:
- *
- *     var uiButton = Ext.create('Ext.Button', {
- *         text: 'My Button',
- *         ui: 'action'
- *     });
- *
- * And how they look:
- *
- *     @example miniphone preview
- *     Ext.create('Ext.Container', {
- *         fullscreen: true,
- *         padding: 4,
- *         defaults: {
- *             xtype: 'button',
- *             margin: 5
- *         },
- *         layout: {
- *             type: 'vbox',
- *             align: 'center'
- *         },
- *         items: [
- *             { ui: 'normal', text: 'normal' },
- *             { ui: 'round', text: 'round' },
- *             { ui: 'action', text: 'action' },
- *             { ui: 'decline', text: 'decline' },
- *             { ui: 'confirm', text: 'confirm' }
- *         ]
- *     });
- *
- * Note that the default {@link #ui} is **normal**.
- *
- * You can also use the {@link #sencha-button-ui sencha-button-ui} CSS Mixin to create your own UIs.
- *
- * ## Examples
- *
- * This example shows a bunch of icons on the screen in two toolbars. When you click on the center
- * button, it switches the iconCls on every button on the page.
- *
- *     @example preview
- *     Ext.createWidget('container', {
- *         fullscreen: true,
- *         layout: {
- *             type: 'vbox',
- *             pack:'center',
- *             align: 'center'
- *         },
- *         items: [
- *             {
- *                 xtype: 'button',
- *                 text: 'Change iconCls',
- *                 handler: function() {
- *                     // classes for all the icons to loop through.
- *                     var availableIconCls = [
- *                         'action', 'add', 'arrow_down', 'arrow_left',
- *                         'arrow_right', 'arrow_up', 'compose', 'delete',
- *                         'organize', 'refresh', 'reply', 'search',
- *                         'settings', 'star', 'trash', 'maps', 'locate',
- *                         'home'
- *                     ];
- *                     // get the text of this button,
- *                     // so we know which button we don't want to change
- *                     var text = this.getText();
- *
- *                     // use ComponentQuery to find all buttons on the page
- *                     // and loop through all of them
- *                     Ext.Array.forEach(Ext.ComponentQuery.query('button'), function(button) {
- *                         // if the button is the change iconCls button, continue
- *                         if (button.getText() == text) {
- *                             return;
- *                         }
- *
- *                         // get the index of the new available iconCls
- *                         var index = availableIconCls.indexOf(button.getIconCls()) + 1;
- *
- *                         // update the iconCls of the button with the next iconCls, if one exists.
- *                         // if not, use the first one
- *                         button.setIconCls(availableIconCls[(index == availableIconCls.length) ? 0 : index]);
- *                     });
- *                 }
- *             },
- *             {
- *                 xtype: 'toolbar',
- *                 docked: 'top',
- *                 defaults: {
- *                     iconMask: true
- *                 },
- *                 items: [
- *                     { xtype: 'spacer' },
- *                     { iconCls: 'action' },
- *                     { iconCls: 'add' },
- *                     { iconCls: 'arrow_down' },
- *                     { iconCls: 'arrow_left' },
- *                     { iconCls: 'arrow_up' },
- *                     { iconCls: 'compose' },
- *                     { iconCls: 'delete' },
- *                     { iconCls: 'organize' },
- *                     { iconCls: 'refresh' },
- *                     { xtype: 'spacer' }
- *                 ]
- *             },
- *             {
- *                 xtype: 'toolbar',
- *                 docked: 'bottom',
- *                 ui: 'light',
- *                 defaults: {
- *                     iconMask: true
- *                 },
- *                 items: [
- *                     { xtype: 'spacer' },
- *                     { iconCls: 'reply' },
- *                     { iconCls: 'search' },
- *                     { iconCls: 'settings' },
- *                     { iconCls: 'star' },
- *                     { iconCls: 'trash' },
- *                     { iconCls: 'maps' },
- *                     { iconCls: 'locate' },
- *                     { iconCls: 'home' },
- *                     { xtype: 'spacer' }
- *                 ]
- *             }
- *         ]
- *     });
- *
- */
-Ext.define('Ext.Button', {
-    extend: 'Ext.Component',
-
-    xtype: 'button',
-
-    /**
-     * @event tap
-     * @preventable doTap
-     * Fires whenever a button is tapped
-     * @param {Ext.Button} this The item added to the Container
-     * @param {Ext.EventObject} e The event object
-     */
-
-    /**
-     * @event release
-     * @preventable doRelease
-     * Fires whenever the button is released
-     * @param {Ext.Button} this The item added to the Container
-     * @param {Ext.EventObject} e The event object
-     */
-
-    cachedConfig: {
-        /**
-         * @cfg {String} pressedCls
-         * The CSS class to add to the Button when it is pressed.
-         * @accessor
-         */
-        pressedCls: Ext.baseCSSPrefix + 'button-pressing',
-
-        /**
-         * @cfg {String} badgeCls
-         * The CSS class to add to the Button's badge, if it has one.
-         * @accessor
-         */
-        badgeCls: Ext.baseCSSPrefix + 'badge',
-
-        /**
-         * @cfg {String} hasBadgeCls
-         * The CSS class to add to the Button if it has a badge (note that this goes on the
-         * Button element itself, not on the badge element).
-         * @private
-         * @accessor
-         */
-        hasBadgeCls: Ext.baseCSSPrefix + 'hasbadge',
-
-        /**
-         * @cfg {String} labelCls
-         * The CSS class to add to the field's label element.
-         * @accessor
-         */
-        labelCls: Ext.baseCSSPrefix + 'button-label',
-
-        /**
-         * @cfg {String} iconMaskCls
-         * @private
-         * The CSS class to add to the icon element as allowed by {@link #iconMask}.
-         * @accessor
-         */
-        iconMaskCls: Ext.baseCSSPrefix + 'icon-mask',
-
-        /**
-         * @cfg {String} iconCls
-         * Optional CSS class to add to the icon element. This is useful if you want to use a CSS
-         * background image to create your Button icon.
-         * @accessor
-         */
-        iconCls: null
-    },
-
-    config: {
-        /**
-         * @cfg {String} badgeText
-         * Optional badge text.
-         * @accessor
-         */
-        badgeText: null,
-
-        /**
-         * @cfg {String} text
-         * The Button text.
-         * @accessor
-         */
-        text: null,
-
-        /**
-         * @cfg {String} icon
-         * Url to the icon image to use if you want an icon to appear on your button.
-         * @accessor
-         */
-        icon: null,
-
-        /**
-         * @cfg {String} iconAlign
-         * The position within the Button to render the icon Options are: `top`, `right`, `bottom`, `left` and `center` (when you have
-         * no {@link #text} set).
-         * @accessor
-         */
-        iconAlign: 'left',
-
-        /**
-         * @cfg {Number/Boolean} pressedDelay
-         * The amount of delay between the tapstart and the moment we add the pressedCls (in milliseconds).
-         * Settings this to true defaults to 100ms.
-         */
-        pressedDelay: 0,
-
-        /**
-         * @cfg {Boolean} iconMask
-         * Whether or not to mask the icon with the {@link #iconMask} configuration.
-         * This is needed if you want to use any of the bundled pictos icons in the Sencha Touch SASS.
-         * @accessor
-         */
-        iconMask: null,
-
-        /**
-         * @cfg {Function} handler
-         * The handler function to run when the Button is tapped on.
-         * @accessor
-         */
-        handler: null,
-
-        /**
-         * @cfg {Object} scope
-         * The scope to fire the configured {@link #handler} in.
-         * @accessor
-         */
-        scope: null,
-
-        /**
-         * @cfg {String} autoEvent
-         * Optional event name that will be fired instead of 'tap' when the Button is tapped on.
-         * @accessor
-         */
-        autoEvent: null,
-
-        /**
-         * @cfg {String} ui
-         * The ui style to render this button with. The valid default options are:
-         * 'normal', 'back', 'round', 'action', 'confirm' and 'forward'.
-         * @accessor
-         */
-        ui: 'normal',
-
-        /**
-         * @cfg {String} html The html to put in this button.
-         *
-         * If you want to just add text, please use the {@link #text} configuration
-         */
-
-        /**
-         * @cfg
-         * @inheritdoc
-         */
-        baseCls: Ext.baseCSSPrefix + 'button'
-    },
-
-    template: [
-        {
-            tag: 'span',
-            reference: 'badgeElement',
-            hidden: true
-        },
-        {
-            tag: 'span',
-            className: Ext.baseCSSPrefix + 'button-icon',
-            reference: 'iconElement',
-            hidden: true
-        },
-        {
-            tag: 'span',
-            reference: 'textElement',
-            hidden: true
-        }
-    ],
-
-    initialize: function() {
-        this.callParent();
-
-        this.element.on({
-            scope      : this,
-            tap        : 'onTap',
-            touchstart : 'onPress',
-            touchend   : 'onRelease'
-        });
-    },
-
-    /**
-     * @private
-     */
-    updateBadgeText: function(badgeText) {
-        var element = this.element,
-            badgeElement = this.badgeElement;
-
-        if (badgeText) {
-            badgeElement.show();
-            badgeElement.setText(badgeText);
-        }
-        else {
-            badgeElement.hide();
-        }
-
-        element[(badgeText) ? 'addCls' : 'removeCls'](this.getHasBadgeCls());
-    },
-
-    /**
-     * @private
-     */
-    updateText: function(text) {
-        var textElement = this.textElement;
-        if (textElement) {
-            if (text) {
-                textElement.show();
-                textElement.setHtml(text);
-            }
-            else {
-                textElement.hide();
-            }
-        }
-    },
-
-    /**
-     * @private
-     */
-    updateHtml: function(html) {
-        var textElement = this.textElement;
-
-        if (html) {
-            textElement.show();
-            textElement.setHtml(html);
-        }
-        else {
-            textElement.hide();
-        }
-    },
-
-    /**
-     * @private
-     */
-    updateBadgeCls: function(badgeCls, oldBadgeCls) {
-        this.badgeElement.replaceCls(oldBadgeCls, badgeCls);
-    },
-
-    /**
-     * @private
-     */
-    updateHasBadgeCls: function(hasBadgeCls, oldHasBadgeCls) {
-        var element = this.element;
-
-        if (element.hasCls(oldHasBadgeCls)) {
-            element.replaceCls(oldHasBadgeCls, hasBadgeCls);
-        }
-    },
-
-    /**
-     * @private
-     */
-    updateLabelCls: function(labelCls, oldLabelCls) {
-        this.textElement.replaceCls(oldLabelCls, labelCls);
-    },
-
-    /**
-     * @private
-     */
-    updatePressedCls: function(pressedCls, oldPressedCls) {
-        var element = this.element;
-
-        if (element.hasCls(oldPressedCls)) {
-            element.replaceCls(oldPressedCls, pressedCls);
-        }
-    },
-
-    /**
-     * @private
-     */
-    updateIcon: function(icon) {
-        var me = this,
-            element = me.iconElement;
-
-        if (icon) {
-            me.showIconElement();
-            element.setStyle('background-image', icon ? 'url(' + icon + ')' : '');
-            me.refreshIconAlign();
-            me.refreshIconMask();
-        }
-        else {
-            me.hideIconElement();
-            me.setIconAlign(false);
-        }
-    },
-
-    /**
-     * @private
-     */
-    updateIconCls: function(iconCls, oldIconCls) {
-        var me = this,
-            element = me.iconElement;
-
-        if (iconCls) {
-            me.showIconElement();
-            element.replaceCls(oldIconCls, iconCls);
-            me.refreshIconAlign();
-            me.refreshIconMask();
-        }
-        else {
-            me.hideIconElement();
-            me.setIconAlign(false);
-        }
-    },
-
-    /**
-     * @private
-     */
-    updateIconAlign: function(alignment, oldAlignment) {
-        var element = this.element,
-            baseCls = Ext.baseCSSPrefix + 'iconalign-';
-
-        if (!this.getText()) {
-            alignment = "center";
-        }
-
-        element.removeCls(baseCls + "center");
-        element.removeCls(baseCls + oldAlignment);
-        if (this.getIcon() || this.getIconCls()) {
-            element.addCls(baseCls + alignment);
-        }
-    },
-
-    refreshIconAlign: function() {
-        this.updateIconAlign(this.getIconAlign());
-    },
-
-    /**
-     * @private
-     */
-    updateIconMaskCls: function(iconMaskCls, oldIconMaskCls) {
-        var element = this.iconElement;
-
-        if (this.getIconMask()) {
-            element.replaceCls(oldIconMaskCls, iconMaskCls);
-        }
-    },
-
-    /**
-     * @private
-     */
-    updateIconMask: function(iconMask) {
-        this.iconElement[iconMask ? "addCls" : "removeCls"](this.getIconMaskCls());
-    },
-
-    refreshIconMask: function() {
-        this.updateIconMask(this.getIconMask());
-    },
-
-    applyAutoEvent: function(autoEvent) {
-        var me = this;
-
-        if (typeof autoEvent == 'string') {
-            autoEvent = {
-                name : autoEvent,
-                scope: me.scope || me
-            };
-        }
-
-        return autoEvent;
-    },
-
-    /**
-     * @private
-     */
-    updateAutoEvent: function(autoEvent) {
-        var name  = autoEvent.name,
-            scope = autoEvent.scope;
-
-        this.setHandler(function() {
-            scope.fireEvent(name, scope, this);
-        });
-
-        this.setScope(scope);
-    },
-
-    /**
-     * Used by icon and iconCls configurations to hide the icon element.
-     * We do this because Tab needs to change the visibility of the icon, not make
-     * it display:none
-     * @private
-     */
-    hideIconElement: function() {
-        this.iconElement.hide();
-    },
-
-    /**
-     * Used by icon and iconCls configurations to show the icon element.
-     * We do this because Tab needs to change the visibility of the icon, not make
-     * it display:node
-     * @private
-     */
-    showIconElement: function() {
-        this.iconElement.show();
-    },
-
-    /**
-     * We override this to check for '{ui}-back'. This is because if you have a UI of back, you need to actually add two class names.
-     * The ui class, and the back class:
-     *
-     * `ui: 'action-back'` would turn into:
-     *
-     * `class="x-button-action x-button-back"`
-     *
-     * But `ui: 'action' would turn into:
-     *
-     * `class="x-button-action"`
-     *
-     * So we just split it up into an array and add both of them as a UI, when it has `back`.
-     * @private
-     */
-    applyUi: function(config) {
-        if (config && Ext.isString(config)) {
-            var array  = config.split('-');
-            if (array && (array[1] == "back" || array[1] == "forward")) {
-                return array;
-            }
-        }
-
-        return config;
-    },
-
-    getUi: function() {
-        //Now that the UI can sometimes be an array, we need to check if it an array and return the proper value.
-        var ui = this._ui;
-        if (Ext.isArray(ui)) {
-            return ui.join('-');
-        }
-        return ui;
-    },
-
-    applyPressedDelay: function(delay) {
-        if (Ext.isNumber(delay)) {
-            return delay;
-        }
-        return (delay) ? 100 : 0;
-    },
-
-    // @private
-    onPress: function() {
-        var me = this,
-            element = me.element,
-            pressedDelay = me.getPressedDelay(),
-            pressedCls = me.getPressedCls();
-
-        if (!me.getDisabled()) {
-            if (pressedDelay > 0) {
-                me.pressedTimeout = setTimeout(function() {
-                    delete me.pressedTimeout;
-                    if (element) {
-                        element.addCls(pressedCls);
-                    }
-                }, pressedDelay);
-            }
-            else {
-                element.addCls(pressedCls);
-            }
-        }
-    },
-
-    // @private
-    onRelease: function(e) {
-        this.fireAction('release', [this, e], 'doRelease');
-    },
-
-    // @private
-    doRelease: function(me, e) {
-        if (!me.getDisabled()) {
-            if (me.hasOwnProperty('pressedTimeout')) {
-                clearTimeout(me.pressedTimeout);
-                delete me.pressedTimeout;
-            }
-            else {
-                me.element.removeCls(me.getPressedCls());
-            }
-        }
-    },
-
-    // @private
-    onTap: function(e) {
-        if (this.getDisabled()) {
-            return false;
-        }
-
-        this.fireAction('tap', [this, e], 'doTap');
-    },
-
-    /**
-     * @private
-     */
-    doTap: function(me, e) {
-        var handler = me.getHandler(),
-            scope = me.getScope() || me;
-
-        if (!handler) {
-            return;
-        }
-
-        if (typeof handler == 'string') {
-            handler = scope[handler];
-        }
-
-        //this is done so if you hide the button in the handler, the tap event will not fire on the new element
-        //where the button was.
-        e.preventDefault();
-
-        handler.apply(scope, arguments);
-    }
-}, function() {
-
-    /**
-     * Updates the badge text
-     * @method setBadge
-     * @param {String} text
-     * @deprecated 2.0.0 Please use {@link #setBadgeText} instead.
-     */
-    Ext.deprecateClassMethod(this, 'setBadge', 'setBadgeText');
-
-    /**
-     * Updates the icon class
-     * @method setIconClass
-     * @param {String} iconClass
-     * @deprecated 2.0.0 Please use {@link #setIconCls} instead.
-     */
-    Ext.deprecateClassMethod(this, 'setIconClass', 'setIconCls');
-
-    this.override({
-        constructor: function(config) {
-            if (config) {
-                /**
-                 * @cfg {String} badge
-                 * Optional badge text.
-                 * @deprecated 2.0.0 Please use {@link #badgeText} instead
-                 */
-                if (config.hasOwnProperty('badge')) {
-                    Ext.Logger.deprecate("'badge' config is deprecated, please use 'badgeText' config instead", this);
-                    config.badgeText = config.badge;
-                }
-            }
-
-            this.callParent([config]);
-        }
-    });
-
-});
-
-/**
-The {@link Ext.Spacer} component is generally used to put space between items in {@link Ext.Toolbar} components.
-
-## Examples
-
-By default the {@link #flex} configuration is set to 1:
-
-    @example miniphone preview
-    Ext.create('Ext.Container', {
-        fullscreen: true,
-        items: [
-            {
-                xtype : 'toolbar',
-                docked: 'top',
-                items: [
-                    {
-                        xtype: 'button',
-                        text : 'Button One'
-                    },
-                    {
-                        xtype: 'spacer'
-                    },
-                    {
-                        xtype: 'button',
-                        text : 'Button Two'
-                    }
-                ]
-            }
-        ]
-    });
-
-Alternatively you can just set the {@link #width} configuration which will get the {@link Ext.Spacer} a fixed width:
-
-    @example preview
-    Ext.create('Ext.Container', {
-        fullscreen: true,
-        layout: {
-            type: 'vbox',
-            pack: 'center',
-            align: 'stretch'
-        },
-        items: [
-            {
-                xtype : 'toolbar',
-                docked: 'top',
-                items: [
-                    {
-                        xtype: 'button',
-                        text : 'Button One'
-                    },
-                    {
-                        xtype: 'spacer',
-                        width: 50
-                    },
-                    {
-                        xtype: 'button',
-                        text : 'Button Two'
-                    }
-                ]
-            },
-            {
-                xtype: 'container',
-                items: [
-                    {
-                        xtype: 'button',
-                        text : 'Change Ext.Spacer width',
-                        handler: function() {
-                            //get the spacer using ComponentQuery
-                            var spacer = Ext.ComponentQuery.query('spacer')[0],
-                                from = 10,
-                                to = 250;
-
-                            //set the width to a random number
-                            spacer.setWidth(Math.floor(Math.random() * (to - from + 1) + from));
-                        }
-                    }
-                ]
-            }
-        ]
-    });
-
-You can also insert multiple {@link Ext.Spacer}'s:
-
-    @example preview
-    Ext.create('Ext.Container', {
-        fullscreen: true,
-        items: [
-            {
-                xtype : 'toolbar',
-                docked: 'top',
-                items: [
-                    {
-                        xtype: 'button',
-                        text : 'Button One'
-                    },
-                    {
-                        xtype: 'spacer'
-                    },
-                    {
-                        xtype: 'button',
-                        text : 'Button Two'
-                    },
-                    {
-                        xtype: 'spacer',
-                        width: 20
-                    },
-                    {
-                        xtype: 'button',
-                        text : 'Button Three'
-                    }
-                ]
-            }
-        ]
-    });
- */
-Ext.define('Ext.Spacer', {
-    extend: 'Ext.Component',
-    alias : 'widget.spacer',
-
-    config: {
-        /**
-         * @cfg {Number} flex
-         * The flex value of this spacer. This defaults to 1, if no width has been set.
-         * @accessor
-         */
-        
-        /**
-         * @cfg {Number} width
-         * The width of this spacer. If this is set, the value of {@link #flex} will be ignored.
-         * @accessor
-         */
-    },
-
-    // @private
-    constructor: function(config) {
-        config = config || {};
-
-        if (!config.width) {
-            config.flex = 1;
-        }
-
-        this.callParent([config]);
     }
 });
 
@@ -36581,6 +36800,1363 @@ Ext.define('Ext.data.association.HasOne', {
 });
 
 /**
+ * {@link Ext.TitleBar}'s are most commonly used as a docked item within an {@link Ext.Container}.
+ *
+ * The main difference between a {@link Ext.TitleBar} and an {@link Ext.Toolbar} is that
+ * the {@link #title} configuration is **always** centered horiztonally in a {@link Ext.TitleBar} between
+ * any items aligned left or right.
+ *
+ * You can also give items of a {@link Ext.TitleBar} an `align` configuration of `left` or `right`
+ * which will dock them to the `left` or `right` of the bar.
+ *
+ * ## Examples
+ *
+ *     @example preview
+ *     Ext.Viewport.add({
+ *         xtype: 'titlebar',
+ *         docked: 'top',
+ *         title: 'Navigation',
+ *         items: [
+ *             {
+ *                 iconCls: 'add',
+ *                 iconMask: true,
+ *                 align: 'left'
+ *             },
+ *             {
+ *                 iconCls: 'home',
+ *                 iconMask: true,
+ *                 align: 'right'
+ *             }
+ *         ]
+ *     });
+ *
+ *     Ext.Viewport.setStyleHtmlContent(true);
+ *     Ext.Viewport.setHtml('This shows the title being centered and buttons using align <i>left</i> and <i>right</i>.');
+ *
+ * <br />
+ *
+ *     @example preview
+ *     Ext.Viewport.add({
+ *         xtype: 'titlebar',
+ *         docked: 'top',
+ *         title: 'Navigation',
+ *         items: [
+ *             {
+ *                 align: 'left',
+ *                 text: 'This button has a super long title'
+ *             },
+ *             {
+ *                 iconCls: 'home',
+ *                 iconMask: true,
+ *                 align: 'right'
+ *             }
+ *         ]
+ *     });
+ *
+ *     Ext.Viewport.setStyleHtmlContent(true);
+ *     Ext.Viewport.setHtml('This shows how the title is automatically moved to the right when one of the aligned buttons is very wide.');
+ *
+ * <br />
+ *
+ *     @example preview
+ *     Ext.Viewport.add({
+ *         xtype: 'titlebar',
+ *         docked: 'top',
+ *         title: 'A very long title',
+ *         items: [
+ *             {
+ *                 align: 'left',
+ *                 text: 'This button has a super long title'
+ *             },
+ *             {
+ *                 align: 'right',
+ *                 text: 'Another button'
+ *             },
+ *         ]
+ *     });
+ *
+ *     Ext.Viewport.setStyleHtmlContent(true);
+ *     Ext.Viewport.setHtml('This shows how the title and buttons will automatically adjust their size when the width of the items are too wide..');
+ *
+ * The {@link #defaultType} of Toolbar's is {@link Ext.Button button}.
+ */
+Ext.define('Ext.TitleBar', {
+    extend: 'Ext.Container',
+    xtype: 'titlebar',
+
+    requires: [
+        'Ext.Button',
+        'Ext.Title',
+        'Ext.Spacer',
+        'Ext.util.SizeMonitor'
+    ],
+
+    // private
+    isToolbar: true,
+
+    config: {
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'toolbar',
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        cls: Ext.baseCSSPrefix + 'navigation-bar',
+
+        /**
+         * @cfg {String} ui
+         * Style options for Toolbar. Either 'light' or 'dark'.
+         * @accessor
+         */
+        ui: 'dark',
+
+        /**
+         * @cfg {String} title
+         * The title of the toolbar.
+         * @accessor
+         */
+        title: null,
+
+        /**
+         * @cfg {String} defaultType
+         * The default xtype to create.
+         * @accessor
+         */
+        defaultType: 'button',
+
+        /**
+         * @cfg
+         * @hide
+         */
+        layout: {
+            type: 'hbox'
+        },
+
+        /**
+         * @cfg {Array/Object} items The child items to add to this TitleBar. The {@link #defaultType} of
+         * a TitleBar is {@link Ext.Button}, so you do not need to specify an `xtype` if you are adding
+         * buttons.
+         *
+         * You can also give items a `align` configuration which will align the item to the `left` or `right` of
+         * the TitleBar.
+         * @accessor
+         */
+        items: []
+    },
+
+    /**
+     * The max button width in this toolbar
+     * @private
+     */
+    maxButtonWidth: '40%',
+
+    constructor: function() {
+        this.refreshTitlePosition = Ext.Function.createThrottled(this.refreshTitlePosition, 50, this);
+
+        this.callParent(arguments);
+    },
+
+    beforeInitialize: function() {
+        this.applyItems = this.applyInitialItems;
+    },
+
+    initialize: function() {
+        delete this.applyItems;
+
+        this.add(this.initialItems);
+        delete this.initialItems;
+
+        this.on({
+            painted: 'refreshTitlePosition',
+            single: true
+        });
+    },
+
+    applyInitialItems: function(items) {
+        var me = this,
+            defaults = me.getDefaults() || {};
+
+        me.initialItems = items;
+
+        me.leftBox = me.add({
+            xtype: 'container',
+            style: 'position: relative',
+            layout: {
+                type: 'hbox',
+                align: 'center'
+            },
+            listeners: {
+                resize: 'refreshTitlePosition',
+                scope: me
+            }
+        });
+
+        me.spacer = me.add({
+            xtype: 'component',
+            style: 'position: relative',
+            flex: 1,
+            listeners: {
+                resize: 'refreshTitlePosition',
+                scope: me
+            }
+        });
+
+        me.rightBox = me.add({
+            xtype: 'container',
+            style: 'position: relative',
+            layout: {
+                type: 'hbox',
+                align: 'center'
+            },
+            listeners: {
+                resize: 'refreshTitlePosition',
+                scope: me
+            }
+        });
+
+        me.titleComponent = me.add({
+            xtype: 'title',
+            hidden: defaults.hidden,
+            centered: true
+        });
+
+        me.doAdd = me.doBoxAdd;
+        me.remove = me.doBoxRemove;
+        me.doInsert = me.doBoxInsert;
+    },
+
+    doBoxAdd: function(item) {
+        if (item.config.align == 'right') {
+            this.rightBox.add(item);
+        }
+        else {
+            this.leftBox.add(item);
+        }
+    },
+
+    doBoxRemove: function(item) {
+        if (item.config.align == 'right') {
+            this.rightBox.remove(item);
+        }
+        else {
+            this.leftBox.remove(item);
+        }
+    },
+
+    doBoxInsert: function(index, item) {
+        if (item.config.align == 'right') {
+            this.rightBox.add(item);
+        }
+        else {
+            this.leftBox.add(item);
+        }
+    },
+
+    getMaxButtonWidth: function() {
+        var value = this.maxButtonWidth;
+
+        //check if it is a percentage
+        if (Ext.isString(this.maxButtonWidth)) {
+            value = parseInt(value.replace('%', ''), 10);
+            value = Math.round((this.element.getWidth() / 100) * value);
+        }
+
+        return value;
+    },
+
+    refreshTitlePosition: function() {
+        var titleElement = this.titleComponent.renderElement;
+
+        titleElement.setWidth(null);
+        titleElement.setLeft(null);
+
+        //set the min/max width of the left button
+        var leftBox = this.leftBox,
+            leftButton = leftBox.down('button'),
+            leftBoxWidth, maxButtonWidth;
+
+        if (leftButton) {
+            if (leftButton.getWidth() == null) {
+                leftButton.renderElement.setWidth('auto');
+            }
+
+            leftBoxWidth = leftBox.renderElement.getWidth();
+            maxButtonWidth = this.getMaxButtonWidth();
+
+            if (leftBoxWidth > maxButtonWidth) {
+                leftButton.renderElement.setWidth(maxButtonWidth);
+            }
+        }
+
+        var spacerBox = this.spacer.renderElement.getPageBox(),
+            titleBox = titleElement.getPageBox(),
+            widthDiff = titleBox.width - spacerBox.width,
+            titleLeft = titleBox.left,
+            titleRight = titleBox.right,
+            halfWidthDiff, leftDiff, rightDiff;
+
+        if (widthDiff > 0) {
+            titleElement.setWidth(spacerBox.width);
+            halfWidthDiff = widthDiff / 2;
+            titleLeft += halfWidthDiff;
+            titleRight -= halfWidthDiff;
+        }
+
+        leftDiff = spacerBox.left - titleLeft;
+        rightDiff = titleRight - spacerBox.right;
+
+        if (leftDiff > 0) {
+            titleElement.setLeft(leftDiff);
+        }
+        else if (rightDiff > 0) {
+            titleElement.setLeft(-rightDiff);
+        }
+
+        titleElement.repaint();
+    },
+
+    // @private
+    updateTitle: function(newTitle) {
+        this.titleComponent.setTitle(newTitle);
+
+        if (this.isPainted()) {
+            this.refreshTitlePosition();
+        }
+    }
+});
+
+/**
+ * This component is used in {@link Ext.navigation.View} to control animations in the toolbar. You should never need to
+ * interact with the component directly, unless you are subclassing it.
+ * @private
+ * @author Robert Dougan <rob@sencha.com>
+ */
+Ext.define('Ext.navigation.Bar', {
+    extend: 'Ext.TitleBar',
+
+    requires: [
+        'Ext.Button',
+        'Ext.Spacer'
+    ],
+
+    // private
+    isToolbar: true,
+
+    config: {
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'toolbar',
+
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        cls: Ext.baseCSSPrefix + 'navigation-bar',
+
+        /**
+         * @cfg {String} ui
+         * Style options for Toolbar. Either 'light' or 'dark'.
+         * @accessor
+         */
+        ui: 'dark',
+
+        /**
+         * @cfg {String} title
+         * The title of the toolbar. You should NEVER set this, it is used internally. You set the title of the
+         * navigation bar by giving a navigation views children a title configuration.
+         * @private
+         * @accessor
+         */
+        title: null,
+
+        /**
+         * @cfg
+         * @hide
+         * @accessor
+         */
+        defaultType: 'button',
+
+        /**
+         * @cfg
+         * @ignore
+         * @accessor
+         */
+        layout: {
+            type: 'hbox'
+        },
+
+        /**
+         * @cfg {Array/Object} items The child items to add to this NavigationBar. The {@link #cfg-defaultType} of
+         * a NavigationBar is {@link Ext.Button}, so you do not need to specify an `xtype` if you are adding
+         * buttons.
+         *
+         * You can also give items a `align` configuration which will align the item to the `left` or `right` of
+         * the NavigationBar.
+         * @hide
+         * @accessor
+         */
+
+        /**
+         * @cfg {String} defaultBackButtonText
+         * The text to be displayed on the back button if:
+         * a) The previous view does not have a title
+         * b) The {@link #useTitleForBackButtonText} configuration is true.
+         * @private
+         * @accessor
+         */
+        defaultBackButtonText: 'Back',
+
+        /**
+         * @cfg {Object} animation
+         * @private
+         * @accessor
+         */
+        animation: {
+            duration: 300
+        },
+
+        /**
+         * @cfg {Boolean} useTitleForBackButtonText
+         * Set to false if you always want to display the {@link #defaultBackButtonText} as the text
+         * on the back button. True if you want to use the previous views title.
+         * @private
+         * @accessor
+         */
+        useTitleForBackButtonText: null,
+
+        /**
+         * @cfg {Ext.navigation.View} view A reference to the navigation view this bar is linked to.
+         * @private
+         * @accessor
+         */
+        view: null,
+
+        /**
+         * @cfg {Boolean} androidAnimation Optionally enable CSS transforms on Android 2
+         * for NavigationBar animations.  Note that this may cause flickering if the
+         * NavigationBar is hidden.
+         * @accessor
+         */
+        android2Transforms: false,
+
+        /**
+         * @cfg {Ext.Button/Object} backButton The configuration for the back button
+         * @private
+         * @accessor
+         */
+        backButton: {
+            align: 'left',
+            ui: 'back',
+            hidden: true
+        }
+    },
+
+    /**
+     * @event back
+     * Fires when the back button was tapped.
+     * @param {Ext.navigation.Bar} this This bar
+     */
+
+    /**
+     * The minmum back button width allowed.
+     * @private
+     */
+    minBackButtonWidth: 80,
+
+    constructor: function(config) {
+        config = config || {};
+
+        if (!config.items) {
+            config.items = [];
+        }
+
+        this.backButtonStack = [];
+        this.activeAnimations = [];
+
+        this.callParent([config]);
+    },
+
+    /**
+     * @private
+     */
+    applyBackButton: function(config) {
+        return Ext.factory(config, Ext.Button, this.getBackButton());
+    },
+
+    /**
+     * @private
+     */
+    updateBackButton: function(newBackButton, oldBackButton) {
+        if (oldBackButton) {
+            this.remove(oldBackButton);
+        }
+
+        if (newBackButton) {
+            this.add(newBackButton);
+
+            newBackButton.on({
+                scope: this,
+                tap: this.onBackButtonTap
+            });
+        }
+    },
+
+    onBackButtonTap: function() {
+        this.fireEvent('back', this);
+    },
+
+    /**
+     * @private
+     */
+    updateView: function(newView) {
+        var me = this,
+            backButton = me.getBackButton(),
+            innerItems, i, backButtonText, item, title;
+
+        me.getItems();
+
+        if (newView) {
+            //update the back button stack with the current inner items of the view
+            innerItems = newView.getInnerItems();
+            for (i = 0; i < innerItems.length; i++) {
+                item = innerItems[i];
+                title = (item.getTitle) ? item.getTitle() : item.config.title;
+
+                me.backButtonStack.push(title || '&nbsp;');
+            }
+
+            me.setTitle(me.getTitleText());
+
+            backButtonText = me.getBackButtonText();
+            if (backButtonText) {
+                backButton.setText(backButtonText);
+                backButton.show();
+            }
+        }
+    },
+
+    /**
+     * @private
+     */
+    onViewAdd: function(view, item) {
+        var me = this,
+            backButtonStack = me.backButtonStack,
+            hasPrevious, title;
+
+        me.endAnimation();
+
+        title = (item.getTitle) ? item.getTitle() : item.config.title;
+
+        backButtonStack.push(title || '&nbsp;');
+        hasPrevious = backButtonStack.length > 1;
+
+        me.doChangeView(view, hasPrevious, false);
+    },
+
+    /**
+     * @private
+     */
+    onViewRemove: function(view) {
+        var me = this,
+            backButtonStack = me.backButtonStack,
+            hasPrevious;
+
+        me.endAnimation();
+        backButtonStack.pop();
+        hasPrevious = backButtonStack.length > 1;
+
+        me.doChangeView(view, hasPrevious, true);
+    },
+
+    /**
+     * @private
+     */
+    doChangeView: function(view, hasPrevious, reverse) {
+        var me = this,
+            leftBox = me.leftBox,
+            leftBoxElement = leftBox.element,
+            titleComponent = me.titleComponent,
+            titleElement = titleComponent.element,
+            backButton = me.getBackButton(),
+            titleText = me.getTitleText(),
+            backButtonText = me.getBackButtonText(),
+            animation = me.getAnimation() && view.getLayout().getAnimation(),
+            animated = animation && animation.isAnimation && view.isPainted(),
+            properties, leftGhost, titleGhost, leftProps, titleProps;
+
+        if (animated) {
+            leftGhost = me.createProxy(leftBox.element);
+            leftBoxElement.setStyle('opacity', '0');
+            backButton.setText(backButtonText);
+            backButton[hasPrevious ? 'show' : 'hide']();
+
+            titleGhost = me.createProxy(titleComponent.element.getParent());
+            titleElement.setStyle('opacity', '0');
+            me.setTitle(titleText);
+
+            me.refreshTitlePosition();
+
+            properties = me.measureView(leftGhost, titleGhost, reverse);
+            leftProps = properties.left;
+            titleProps = properties.title;
+
+            me.isAnimating = true;
+
+            me.animate(leftBoxElement, leftProps.element);
+            me.animate(titleElement, titleProps.element, function() {
+                titleElement.setLeft(properties.titleLeft);
+                me.isAnimating = false;
+            });
+
+            if (Ext.os.is.Android2 && !this.getAndroid2Transforms()) {
+                leftGhost.ghost.destroy();
+                titleGhost.ghost.destroy();
+            }
+            else {
+                me.animate(leftGhost.ghost, leftProps.ghost);
+                me.animate(titleGhost.ghost, titleProps.ghost, function() {
+                    leftGhost.ghost.destroy();
+                    titleGhost.ghost.destroy();
+                });
+            }
+        }
+        else {
+            if (hasPrevious) {
+                backButton.setText(backButtonText);
+                backButton.show();
+            }
+            else {
+                backButton.hide();
+            }
+            me.setTitle(titleText);
+        }
+    },
+
+    /**
+     * Calculates and returns the position values needed for the back button when you are pushing a title.
+     * @private
+     */
+    measureView: function(oldLeft, oldTitle, reverse) {
+        var me = this,
+            barElement = me.element,
+            newLeftElement = me.leftBox.element,
+            titleElement = me.titleComponent.element,
+            minOffset = Math.min(barElement.getWidth() / 3, 200),
+            newLeftWidth = newLeftElement.getWidth(),
+            barX = barElement.getX(),
+            barWidth = barElement.getWidth(),
+            titleX = titleElement.getX(),
+            titleLeft = titleElement.getLeft(),
+            titleWidth = titleElement.getWidth(),
+            oldLeftX = oldLeft.x,
+            oldLeftWidth = oldLeft.width,
+            oldLeftLeft = oldLeft.left,
+            useLeft = Ext.os.is.Android2 && !this.getAndroid2Transforms(),
+            newOffset, oldOffset, leftAnims, titleAnims, omega, theta;
+
+        theta = barX - oldLeftX - oldLeftWidth;
+        if (reverse) {
+            newOffset = theta;
+            oldOffset = Math.min(titleX - oldLeftWidth, minOffset);
+        }
+        else {
+            oldOffset = theta;
+            newOffset = Math.min(titleX - barX, minOffset);
+        }
+
+        if (useLeft) {
+            leftAnims = {
+                element: {
+                    from: {
+                        left: newOffset,
+                        opacity: 1
+                    },
+                    to: {
+                        left: 0,
+                        opacity: 1
+                    }
+                }
+            };
+        }
+        else {
+            leftAnims = {
+                element: {
+                    from: {
+                        transform: {
+                            translateX: newOffset
+                        },
+                        opacity: 0
+                    },
+                    to: {
+                        transform: {
+                            translateX: 0
+                        },
+                        opacity: 1
+                    }
+                },
+                ghost: {
+                    to: {
+                        transform: {
+                            translateX: oldOffset
+                        },
+                        opacity: 0
+                    }
+                }
+            };
+        }
+
+        theta = barX - titleX + newLeftWidth;
+        if ((oldLeftLeft + titleWidth) > titleX) {
+            omega = barX - titleX - titleWidth;
+        }
+
+        if (reverse) {
+            titleElement.setLeft(0);
+
+            oldOffset = barX + barWidth;
+
+            if (omega !== undefined) {
+                newOffset = omega;
+            }
+            else {
+                newOffset = theta;
+            }
+        }
+        else {
+            newOffset = barWidth - titleX;
+
+            if (omega !== undefined) {
+                oldOffset = omega;
+            }
+            else {
+                oldOffset = theta;
+            }
+        }
+
+        if (useLeft) {
+            titleAnims = {
+                element: {
+                    from: {
+                        left: newOffset,
+                        opacity: 1
+                    },
+                    to: {
+                        left: titleLeft,
+                        opacity: 1
+                    }
+                }
+            };
+        }
+        else {
+            titleAnims = {
+                element: {
+                    from: {
+                        transform: {
+                            translateX: newOffset
+                        },
+                        opacity: 0
+                    },
+                    to: {
+                        transform: {
+                            translateX: titleLeft
+                        },
+                        opacity: 1
+                    }
+                },
+                ghost: {
+                    to: {
+                        transform: {
+                            translateX: oldOffset
+                        },
+                        opacity: 0
+                    }
+                }
+            };
+        }
+
+        return {
+            left: leftAnims,
+            title: titleAnims,
+            titleLeft: titleLeft
+        };
+    },
+
+    /**
+     * Helper method used to animate elements.
+     * You pass it an element, objects for the from and to positions an option onEnd callback called when the animation is over.
+     * Normally this method is passed configurations returned from the methods such as #measureTitle(true) etc.
+     * It is called from the #pushLeftBoxAnimated, #pushTitleAnimated, #popBackButtonAnimated and #popTitleAnimated
+     * methods.
+     *
+     * If the current device is Android, it will use top/left to animate.
+     * If it is anything else, it will use transform.
+     * @private
+     */
+    animate: function(element, config, callback) {
+        var me = this,
+            animation;
+
+        //reset the left of the element
+        element.setLeft(0);
+
+        config = Ext.apply(config, {
+            element: element,
+            easing: 'ease-in-out',
+            duration: me.getAnimation().duration
+        });
+
+        animation = new Ext.fx.Animation(config);
+        animation.on('animationend', function() {
+            if (callback) {
+                callback.call(me);
+            }
+        }, me);
+
+        Ext.Animator.run(animation);
+        me.activeAnimations.push(animation);
+    },
+
+    endAnimation: function() {
+        var activeAnimations = this.activeAnimations,
+            animation, i, ln;
+
+        if (activeAnimations) {
+            ln = activeAnimations.length;
+            for (i = 0; i < ln; i++) {
+                animation = activeAnimations[i];
+                if (animation.isAnimating) {
+                    animation.stopAnimation();
+                }
+                else {
+                    animation.destroy();
+                }
+            }
+            this.activeAnimations = [];
+        }
+    },
+
+    refreshTitlePosition: function() {
+        if (!this.isAnimating) {
+            this.callParent();
+        }
+    },
+
+    /**
+     * Returns the text needed for the current back button at anytime.
+     * @private
+     */
+    getBackButtonText: function() {
+        var text = this.backButtonStack[this.backButtonStack.length - 2],
+            useTitleForBackButtonText = this.getUseTitleForBackButtonText();
+
+        if (!useTitleForBackButtonText) {
+            if (text) {
+                text = this.getDefaultBackButtonText();
+            }
+        }
+
+        return text;
+    },
+
+    /**
+     * Returns the text needed for the current title at anytime.
+     * @private
+     */
+    getTitleText: function() {
+        return this.backButtonStack[this.backButtonStack.length - 1];
+    },
+
+    /**
+     * Handles removing back button stacks from this bar
+     * @private
+     */
+    beforePop: function(count) {
+        count--;
+        for (var i = 0; i < count; i++) {
+            this.backButtonStack.pop();
+        }
+    },
+
+    /**
+     * We override the hidden method because we don't want to remove it from the view using display:none. Instead we just position it off
+     * the screen, much like the navigation bar proxy. This means that all animations, pushing, popping etc. all still work when if you hide/show
+     * this bar at any time.
+     * @private
+     */
+    doSetHidden: function(hidden) {
+        if (!hidden) {
+            this.element.setStyle({
+                position: 'relative',
+                top: 'auto',
+                left: 'auto',
+                width: 'auto'
+            });
+        } else {
+            this.element.setStyle({
+                position: 'absolute',
+                top: '-1000px',
+                left: '-1000px',
+                width: this.element.getWidth() + 'px'
+            });
+        }
+    },
+
+    /**
+     * Creates a proxy element of the passed element, and positions it in the same position, using absolute positioning.
+     * The createNavigationBarProxy method uses this to create proxies of the backButton and the title elements.
+     * @private
+     */
+    createProxy: function(element) {
+        var ghost, x, y, left, width;
+
+        ghost = element.dom.cloneNode(true);
+        ghost.id = element.id + '-proxy';
+
+        //insert it into the toolbar
+        element.getParent().dom.appendChild(ghost);
+
+        //set the x/y
+        ghost = Ext.get(ghost);
+        x = element.getX();
+        y = element.getY();
+        left = element.getLeft();
+        width = element.getWidth();
+        ghost.setStyle('position', 'absolute');
+        ghost.setX(x);
+        ghost.setY(y);
+        ghost.setHeight(element.getHeight());
+        ghost.setWidth(width);
+
+        return {
+            x: x,
+            y: y,
+            left: left,
+            width: width,
+            ghost: ghost
+        };
+    }
+});
+
+/**
+ * @author Robert Dougan <rob@sencha.com>
+ *
+ * NavigationView is basically a {@link Ext.Container} with a {@link Ext.layout.Card card} layout, so only one view
+ * can be visible at a time. However, NavigationView also adds extra functionality on top of this to allow
+ * you to `push` and `pop` views at any time. When you do this, your NavigationView will automatically animate
+ * between your current active view, and the new view you want to `push`, or the previous view you want to `pop`.
+ *
+ * Using the NavigationView is very simple. Here is a basic example of it in action:
+ *
+ *     @example
+ *     var view = Ext.create('Ext.NavigationView', {
+ *         fullscreen: true,
+ *
+ *         items: [{
+ *             title: 'First',
+ *             items: [{
+ *                 xtype: 'button',
+ *                 text: 'Push a new view!',
+ *                 handler: function() {
+ *                     //use the push() method to push another view. It works much like
+ *                     //add() or setActiveItem(). it accepts a view instance, or you can give it
+ *                     //a view config.
+ *                     view.push({
+ *                         title: 'Second',
+ *                         html: 'Second view!'
+ *                     });
+ *                 }
+ *             }]
+ *         }]
+ *     });
+ *
+ * Now, here comes the fun part: you can push any view/item into the NavigationView, at any time, and it will
+ * automatically handle the animations between the two views, including adding a back button (if necessary)
+ * and showing the new title.
+ *
+ *     view.push({
+ *         title: 'A new view',
+ *         html: 'Some new content'
+ *     });
+ *
+ * As you can see, it is as simple as calling the {@link #method-push} method, with a new view (instance or object). Done.
+ *
+ * You can also `pop` a view at any time. This will remove the top-most view from the NavigationView, and amimate back
+ * to the previous view. You can do this using the {@link #method-pop} method (which requires no arguments).
+ *
+ *     view.pop();
+ *
+ * @aside guide navigation_view
+ */
+Ext.define('Ext.navigation.View', {
+    extend: 'Ext.Container',
+    alternateClassName: 'Ext.NavigationView',
+    xtype: 'navigationview',
+    requires: ['Ext.navigation.Bar'],
+
+    config: {
+        /**
+         * @cfg
+         * @inheritdoc
+         */
+        baseCls: Ext.baseCSSPrefix + 'navigationview',
+
+        /**
+         * @cfg {Boolean/Object} navigationBar
+         * The NavigationBar used in this navigation view. It defaults to be docked to the top.
+         *
+         * You can just pass in a normal object if you want to customize the NavigationBar. For example:
+         *
+         *     navigationBar: {
+         *         ui: 'dark',
+         *         docked: 'bottom'
+         *     }
+         *
+         * You **cannot** specify a *title* property in this configuration. The title of the navigationBar is taken
+         * from the configuration of this views children:
+         *
+         *     view.push({
+         *         title: 'This views title which will be shown in the navigation bar',
+         *         html: 'Some HTML'
+         *     });
+         *
+         * @accessor
+         */
+        navigationBar: {
+            docked: 'top'
+        },
+
+        /**
+         * @cfg {String} defaultBackButtonText
+         * The text to be displayed on the back button if:
+         * a) The previous view does not have a title
+         * b) The {@link #useTitleForBackButtonText} configuration is true.
+         * @accessor
+         */
+        defaultBackButtonText: 'Back',
+
+        /**
+         * @cfg {Boolean} useTitleForBackButtonText
+         * Set to false if you always want to display the {@link #defaultBackButtonText} as the text
+         * on the back button. True if you want to use the previous views title.
+         * @accessor
+         */
+        useTitleForBackButtonText: false,
+
+        /**
+         * @cfg {Array/Object} items The child items to add to this NavigationView. This is usually an array of Component
+         * configurations or instances, for example:
+         *
+         *    Ext.create('Ext.Container', {
+         *        items: [
+         *            {
+         *                xtype: 'panel',
+         *                title: 'My title',
+         *                html: 'This is an item'
+         *            }
+         *        ]
+         *    });
+         *
+         * If you want a title to be displayed in the {@link #navigationBar}, you must specify a `title` configuration in your
+         * view, like above.
+         *
+         * Note: only one view will be visible at a time. If you want to change to another view, use the {@link #method-push} or
+         * {@link #setActiveItem} methods.
+         * @accessor
+         */
+
+        /**
+         * @cfg
+         * @hide
+         */
+        layout: {
+            type: 'card',
+            animation: {
+                duration: 300,
+                easing: 'ease-out',
+                type: 'slide',
+                direction: 'left'
+            }
+        }
+
+        // See https://sencha.jira.com/browse/TOUCH-1568
+        // If you do, add to #navigationBar config docs:
+        //
+        //     If you want to add a button on the right of the NavigationBar,
+        //     use the {@link #rightButton} configuration.
+    },
+
+    /**
+     * @event push
+     * Fires when a view is pushed into this navigation view
+     * @param {Ext.navigation.View} this The component instance
+     * @param {Mixed} view The view that has been pushed
+     */
+
+    /**
+     * @event pop
+     * Fires when a view is popped from this navigation view
+     * @param {Ext.navigation.View} this The component instance
+     * @param {Mixed} view The view that has been popped
+     */
+
+    /**
+     * @event back
+     * Fires when the back button in the navigation view was tapped.
+     * @param {Ext.navigation.View} this The component instance\
+     */
+
+    // @private
+    initialize: function() {
+        //add a listener onto the back button in the navigationbar
+        this.getNavigationBar().on({
+            back: this.onBackButtonTap,
+            scope: this
+        });
+
+        this.relayEvents(this, {
+            add: 'push',
+            remove: 'pop'
+        });
+
+        var layout = this.getLayout();
+        if (layout && !layout.isCard) {
+            Ext.Logger.error('The base layout for a NavigationView must always be a Card Layout');
+        }
+    },
+
+    /**
+     * @private
+     */
+    applyLayout: function(config) {
+        config = config || {};
+
+        return config;
+    },
+
+    /**
+     * @private
+     * Called when the user taps on the back button
+     */
+    onBackButtonTap: function() {
+        this.pop();
+        this.fireEvent('back', this);
+    },
+
+    /**
+     * Pushes a new view into this navigation view using the default animation that this view has.
+     * @param {Object} view The view to push
+     * @return {Ext.Component} The new item you just pushed
+     */
+    push: function(view) {
+        return this.add(view);
+    },
+
+    /**
+     * Removes the current active view from the stack and sets the previous view using the default animation
+     * of this view.
+     * @param {Number} count The number of views you want to pop
+     * @return {Ext.Component} The new active item
+     */
+    pop: function(count) {
+        if (this.beforePop(count)) {
+            return this.doPop();
+        }
+    },
+
+    /**
+     * @private
+     * Calculates whether it needs to remove any items from the stack when you are popping more than 1
+     * item. If it does, it removes those views from the stack and returns `true`.
+     * @return {Boolean} True if it has removed views
+     */
+    beforePop: function(count) {
+        var me = this,
+            innerItems = this.getInnerItems(),
+            ln = innerItems.length,
+            toRemove, i;
+
+        //default to 1 pop
+        if (!Ext.isNumber(count) || count < 1) {
+            count = 1;
+        }
+
+        //check if we are trying to remove more items than we have
+        count = Math.min(count, ln - 1);
+
+        if (count) {
+            //we need to reset the backButtonStack in the navigation bar
+            me.getNavigationBar().beforePop(count);
+
+            //get the items we need to remove from the view and remove theme
+            toRemove = innerItems.splice(-count, count - 1);
+            for (i = 0; i < toRemove.length; i++) {
+                this.remove(toRemove[i]);
+            }
+
+            return true;
+        }
+
+        return false;
+    },
+
+    /**
+     * @private
+     */
+    doPop: function() {
+        var me = this,
+            innerItems = this.getInnerItems();
+
+        //set the new active item to be the new last item of the stack
+        me.remove(innerItems[innerItems.length - 1]);
+        return this.getActiveItem();
+    },
+
+    /**
+     * Returns the previous item, if one exists.
+     * @return {Mixed} The previous view
+     */
+    getPreviousItem: function() {
+        var innerItems = this.getInnerItems();
+        return innerItems[innerItems.length - 2];
+    },
+
+    /**
+     * Updates the backbutton text accordingly in the {@link #navigationBar}
+     * @private
+     */
+    updateUseTitleForBackButtonText: function(useTitleForBackButtonText) {
+        var navigationBar = this.getNavigationBar();
+        if (navigationBar) {
+            navigationBar.setUseTitleForBackButtonText(useTitleForBackButtonText);
+        }
+    },
+
+    /**
+     * Updates the backbutton text accordingly in the {@link #navigationBar}
+     * @private
+     */
+    updateDefaultBackButtonText: function(defaultBackButtonText) {
+        var navigationBar = this.getNavigationBar();
+        if (navigationBar) {
+            navigationBar.setDefaultBackButtonText(defaultBackButtonText);
+        }
+    },
+
+    // @private
+    applyNavigationBar: function(config) {
+        if (!config) {
+            config = {
+                hidden: true,
+                docked: 'top'
+            };
+        }
+
+        if (config.title) {
+            delete config.title;
+            Ext.Logger.warn("Ext.navigation.View: The 'navigationBar' configuration does not accept a 'title' property. You " +
+                            "set the title of the navigationBar by giving this navigation view's children a 'title' property.");
+        }
+
+        config.view = this;
+        config.useTitleForBackButtonText = this.getUseTitleForBackButtonText();
+
+        return Ext.factory(config, Ext.navigation.Bar, this.getNavigationBar());
+    },
+
+    // @private
+    updateNavigationBar: function(newNavigationBar, oldNavigationBar) {
+        if (oldNavigationBar) {
+            this.remove(oldNavigationBar, true);
+        }
+
+        if (newNavigationBar) {
+            var layout = this.getLayout(),
+                animation = (layout && layout.isLayout) ? layout.getAnimation() : false;
+
+            if (animation && animation.isAnimation) {
+                newNavigationBar.setAnimation(animation.config);
+            }
+            this.add(newNavigationBar);
+        }
+    },
+
+    /**
+     * @private
+     */
+    applyActiveItem: function(activeItem, currentActiveItem) {
+        var me = this,
+            innerItems = me.getInnerItems();
+
+        // Make sure the items are already initialized
+        me.getItems();
+
+        // If we are not initialzed yet, we should set the active item to the last item in the stack
+        if (!me.initialized) {
+            activeItem = innerItems.length - 1;
+        }
+
+        return this.callParent([activeItem, currentActiveItem]);
+    },
+
+    doResetActiveItem: function(innerIndex) {
+        var me = this,
+            innerItems = me.getInnerItems(),
+            animation = me.getLayout().getAnimation();
+
+        if (innerIndex > 0) {
+            if (animation && animation.isAnimation) {
+                animation.setReverse(true);
+            }
+            me.setActiveItem(innerIndex - 1);
+            me.getNavigationBar().onViewRemove(me, innerItems[innerIndex], innerIndex);
+        }
+    },
+
+    /**
+     * @private
+     */
+    doRemove: function() {
+        var animation = this.getLayout().getAnimation();
+
+        if (animation && animation.isAnimation) {
+            animation.setReverse(false);
+        }
+
+        this.callParent(arguments);
+    },
+
+    /**
+     * @private
+     */
+    onItemAdd: function(item, index) {
+        this.doItemLayoutAdd(item, index);
+
+        if (!this.isItemsInitializing && item.isInnerItem()) {
+            this.setActiveItem(item);
+            this.getNavigationBar().onViewAdd(this, item, index);
+        }
+
+        if (this.initialized) {
+            this.fireEvent('add', this, item, index);
+        }
+    },
+
+    /**
+     * Resets the view by removing all items between the first and last item.
+     * @return {Ext.Component} The view that is now active
+     */
+    reset: function() {
+        return this.pop(this.getInnerItems().length);
+    }
+});
+
+/**
  * @private
 */
 Ext.define('Ext.dataview.element.List', {
@@ -40190,78 +41766,62 @@ Ext.define('Ext.MessageBox', {
 });
 
 
-/**
- * Handles Facebook interactions, specifically Login and Logout.
- *
- * When a user logs in, we display their profile picture and a list of Runs.
- */
 Ext.define('JWF.controller.Facebook', {
-    extend: 'Ext.app.Controller',
-    requires: ['Ext.MessageBox'],
+    extend:'Ext.app.Controller',
+    requires:['Ext.MessageBox'],
 
-    config: {
-        control: {
-            '#signout': {
-                tap: 'onUserTap'
+    config:{
+        control:{
+            '#signout':{
+                tap:'onUserTap'
             },
-            '#logoutButton': {
-                tap: 'logout'
+            '#logoutButton':{
+                tap:'logout'
             }
         }
     },
 
-    /**
-     * Load the Facebook Javascript SDK asynchronously
-     */
-    init: function() {
-
+    init:function () {
+        //Load the Facebook Javascript SDK asynchronously
         window.fbAsyncInit = Ext.bind(this.onFacebookInit, this);
-
-        (function(d){
-            var js, id = 'facebook-jssdk'; if (d.getElementById(id)) {return;}
-            js = d.createElement('script'); js.id = id; js.async = true;
+        (function (d) {
+            var js, id = 'facebook-jssdk';
+            if (d.getElementById(id)) {
+                return;
+            }
+            js = d.createElement('script');
+            js.id = id;
+            js.async = true;
             js.src = "//connect.facebook.net/en_US/all.js";
             d.getElementsByTagName('head')[0].appendChild(js);
         }(document));
     },
 
-    onFacebookInit: function() {
-
+    onFacebookInit:function () {
         if (JWF.app.facebookAppId === '') return;
-
         var me = this;
-
         FB.init({
-            appId  : JWF.app.facebookAppId,
-            cookie : true
+            appId:JWF.app.facebookAppId,
+            cookie:true
         });
-
         FB.Event.subscribe('auth.logout', Ext.bind(me.onLogout, me));
-
-        FB.getLoginStatus(function(response) {
-
+        FB.getLoginStatus(function (response) {
             clearTimeout(me.fbLoginTimeout);
-
             me.hasCheckedStatus = true;
             Ext.Viewport.setMasked(false);
-
             Ext.get('splashLoader').destroy();
             Ext.get('rwf-body').addCls('greyBg');
-
             if (response.status == 'connected') {
                 me.onLogin();
             } else {
                 me.login();
             }
         });
-
-        me.fbLoginTimeout = setTimeout(function() {
-
+        me.fbLoginTimeout = setTimeout(function () {
             Ext.Viewport.setMasked(false);
-
             Ext.create('Ext.MessageBox', {
-                title: 'Facebook Error',
-                message: [
+                title:'Facebook Error',
+                message:[
                     'Facebook Authentication is not responding. ',
                     'Please check your Facebook app is correctly configured, ',
                     'then check the network log for calls to Facebook for more information.',
@@ -40272,88 +41832,74 @@ Ext.define('JWF.controller.Facebook', {
         }, 10000);
     },
 
-    login: function() {
+    login:function () {
         Ext.Viewport.setMasked(false);
         var splash = Ext.getCmp('login');
         if (!splash) {
-            Ext.Viewport.add({ xclass: 'JWF.view.Login', id: 'login' });
+            Ext.Viewport.add({ xclass:'JWF.view.Login', id:'login' });
         }
         Ext.getCmp('login').showLoginText();
     },
 
-    onLogin: function() {
-
+    onLogin:function () {
         var me = this,
             errTitle;
-
-        FB.api('/me', function(response) {
-
+        FB.api('/me', function (response) {
             if (response.error) {
                 FB.logout();
-
                 errTitle = "Facebook " + response.error.type + " error";
-                Ext.Msg.alert(errTitle, response.error.message, function() {
+                Ext.Msg.alert(errTitle, response.error.message, function () {
                     me.login();
                 });
             } else {
                 JWF.userData = response;
                 if (!me.main) {
                     me.main = Ext.create('JWF.view.Main', {
-                        id: 'main'
+                        id:'main'
                     });
                 }
                 Ext.Viewport.setActiveItem(me.main);
-                Ext.getStore('Runs').load();
+                Ext.getStore('Posts').load();
             }
         });
     },
 
-    logout: function() {
-        Ext.Viewport.setMasked({xtype: 'loadmask', message: 'Logging out...'});
+    logout:function () {
+        Ext.Viewport.setMasked({xtype:'loadmask', message:'Logging out...'});
         FB.logout();
     },
 
-    /**
-     * Called when the Logout button is tapped
-     */
-    onLogout: function() {
-
+    onLogout:function () {
         if (!this.hasCheckedStatus) return;
 
         this.login();
 
         Ext.Viewport.setMasked(false);
         Ext.Viewport.setActiveItem(Ext.getCmp('login'));
-        Ext.getStore('Runs').removeAll();
+        Ext.getStore('Posts').removeAll();
 
         this.logoutCmp.destroy();
     },
 
-    /**
-     * When the user profile picture is tapped, create a Logout button and pop it up next to the
-     * avatar.
-     */
-    onUserTap: function(cmp) {
-
+    onUserTap:function (cmp) {
         if (!this.logoutCmp) {
             this.logoutCmp = Ext.create('Ext.Panel', {
-                width: 120,
-                top: 0,
-                left: 0,
-                padding: 5,
-                modal: true,
-                hideOnMaskTap: true,
-                items: [
+                width:120,
+                top:0,
+                left:0,
+                padding:5,
+                modal:true,
+                hideOnMaskTap:true,
+                items:[
                     {
-                        xtype: 'button',
-                        id: 'logoutButton',
-                        text: 'Logout',
-                        ui: 'decline'
+                        xtype:'button',
+                        id:'logoutButton',
+                        text:'Logout',
+                        ui:'decline'
                     }
                 ]
             });
         }
-
         this.logoutCmp.showBy(cmp);
     }
 });
@@ -42434,23 +43980,21 @@ Ext.define('Ext.dataview.List', {
     }
 });
 
-/**
- * Displays the list of Runs for a user and their friends.
- */
-Ext.define('JWF.view.run.List', {
+Ext.define('JWF.view.post.List', {
     extend: 'Ext.List',
+    xtype: 'posts',
 
     config: {
-        store: 'Runs',
-
+        store: 'Posts',
+        title: 'Welcome at Mobile Keeper',
+        cls: 'x-posts',
         disableSelection: true,
-
         itemTpl: Ext.create('Ext.XTemplate',
-            '<div class="run">',
-                '<img src="https://graph.facebook.com/{profileId}/picture?type=square" />',
-                '<div class="info"><b>{name}</b> jogged <b>{distance} miles</b></div>',
-                '<div class="location">{location}</div>',
-                '<div class="time">{[this.timeAgoInWords(values.date)]}</div>',
+            '<div class="post">',
+            '<img src="https://graph.facebook.com/{profileId}/picture?type=square" />',
+            '<div class="location"><b>{latitude} , {longitude}</b></div>',
+            '<div class="info">{description}</div>',
+            '<div class="time">{[this.timeAgoInWords(values.date)]}</div>',
             '</div>',
             {
                 timeAgoInWords: function(date) {
@@ -42478,55 +44022,85 @@ Ext.define('JWF.view.run.List', {
             }
         ),
 
-        emptyText: 'Add some Runs, then invite your friends!'
+        emptyText: 'Add some Posts, then invite your friends!'
     }
 });
 
-/**
- * This screen is displayed once a user has logged in to Facebook and authorized our app.
- */
 Ext.define('JWF.view.Main', {
-    extend: 'Ext.Container',
-    requires: [
-        'JWF.view.run.List',
+    extend:'Ext.navigation.View',
+    xtype:'mainview',
+
+    requires:[
+        'JWF.view.post.List',
+        'JWF.view.post.Show',
+        'JWF.view.post.Edit',
         'JWF.view.NoFriends'
     ],
-
-    config: {
-        layout: 'card',
-
-        items: [
-            {
-                docked: 'top',
-                xtype: 'toolbar',
-                id: 'mainToolbar',
-                cls: 'jogToolbar',
-                items: [
-                    {   xtype: 'spacer'   },
-                    {
-                        xtype: 'button',
-                        cls: 'fbButton',
-                        iconCls: 'showFormBtn',
-                        id: 'showFormButton'
+    config:{
+        autoDestroy:false,
+        navigationBar:{
+            docked:'top',
+            id:'mainToolbar',
+            cls:'mkToolbar',
+            ui:'dark',
+            items:[
+                {
+                    xtype:'button',
+                    id:'editButton',
+                    text:'Edit',
+                    align:'right',
+                    hidden:true,
+                    hideAnimation:Ext.os.is.Android ? false : {
+                        type:'fadeOut',
+                        duration:200
                     },
-                    {
-                        xtype: 'button',
-                        cls: 'fbButton',
-                        iconCls: 'signoutBtn',
-                        id: 'signout'
+                    showAnimation:Ext.os.is.Android ? false : {
+                        type:'fadeIn',
+                        duration:200
                     }
-                ]
-            }
+                },
+                {
+                    xtype:'button',
+                    id:'saveButton',
+                    text:'Save',
+                    ui:'sencha',
+                    align:'right',
+                    hidden:true,
+                    hideAnimation:Ext.os.is.Android ? false : {
+                        type:'fadeOut',
+                        duration:200
+                    },
+                    showAnimation:Ext.os.is.Android ? false : {
+                        type:'fadeIn',
+                        duration:200
+                    }
+                },
+                {
+                    xtype:'button',
+                    cls:'fbButton',
+                    align:'right',
+                    iconCls:'showFormBtn',
+                    id:'showFormButton'
+                },
+                {
+                    xtype:'button',
+                    cls:'fbButton',
+                    align:'right',
+                    iconCls:'signoutBtn',
+                    id:'signout'
+                }
+            ]
+        },
+        items:[
+            { xtype:'posts' }
         ]
     },
 
-    initialize: function() {
+    initialize:function () {
         this.callParent();
-
-        // Enable the Tap event on the profile picture in the toolbar, so we can show a logout button
         var meta = Ext.getCmp('signout');
         if (meta) {
-            meta.element.on('tap', function(e) {
+            meta.element.on('tap', function (e) {
                 meta.fireEvent('tap', meta, e);
             });
         }
@@ -46674,19 +48248,15 @@ Ext.define('Ext.data.Model', {
     }
 });
 
-/**
- * A Run model
- */
-Ext.define('JWF.model.Run', {
-    extend: 'Ext.data.Model',
-
-    config: {
-        fields: [
-            { name: 'location',  type: 'string' },
-            { name: 'date',      type: 'date' },
-            { name: 'distance',  type: 'number' },
-            { name: 'profileId', type: 'string' },
-            { name: 'name',      type: 'string' }
+Ext.define('JWF.model.Post', {
+    extend:'Ext.data.Model',
+    config:{
+        fields:[
+            { name:'date', type:'date' },
+            { name:'profileId', type:'string' },
+            { name:'description', type:'string' },
+            { name:'latitude', type:'string' },
+            { name:'longitude', type:'string' }
         ]
     }
 });
@@ -49008,18 +50578,15 @@ Ext.define('Ext.data.Store', {
 
 });
 
-/**
- * The Runs store. Contains a list of all Runs the user and their friends have made.
- */
-Ext.define('JWF.store.Runs', {
+Ext.define('JWF.store.Posts', {
     extend  : 'Ext.data.Store',
 
     config: {
-        model: 'JWF.model.Run',
+        model: 'JWF.model.Post',
 
         proxy: {
             type: 'jsonp',
-            url: '/runs'
+            url: 'http://localhost:5000/posts'
         }
     }
 });
@@ -50842,10 +52409,7 @@ Ext.define('Ext.field.DatePicker', {
     Ext.deprecateMethod(this, 'getDatePicker', 'getPicker');
 });
 
-/**
- * The Form that is shows when a user wants to add a new Run to the database.
- */
-Ext.define('JWF.view.Form', {
+Ext.define('JWF.view.PostForm', {
     extend: 'Ext.form.Panel',
     requires: [
         'Ext.form.FieldSet',
@@ -50862,13 +52426,13 @@ Ext.define('JWF.view.Form', {
             {
                 docked: 'top',
                 xtype: 'toolbar',
-                title: 'New Jog',
+                title: 'New Post',
                 items: [
                     {
                         xtype: 'button',
                         text: 'Back',
                         ui: 'back',
-                        id: 'addRunBackBtn'
+                        id: 'addPostBackBtn'
                     }
                 ]
             },
@@ -50877,21 +52441,26 @@ Ext.define('JWF.view.Form', {
                 items: [
                     {
                         xtype: 'textfield',
-                        id   : 'locationField',
-                        placeHolder: 'Where?'
+                        id   : 'latitudeField',
+                        placeHolder: 'Latitude?'
                     },
                     {
-                        xtype: 'numberfield',
-                        id   : 'distanceField',
-                        placeHolder: 'How Many Miles?'
+                        xtype: 'textfield',
+                        id   : 'longitudeField',
+                        placeHolder: 'Longitude?'
+                    },
+                    {
+                        xtype: 'textfield',
+                        id   : 'descriptionField',
+                        placeHolder: 'Description?'
                     }
                 ]
             },
             {
                 xtype: 'button',
-                text: 'Add Jog',
+                text: 'Add Post',
                 ui: 'facebook',
-                id: 'addRunButton'
+                id: 'addPostButton'
             }
         ]
     }

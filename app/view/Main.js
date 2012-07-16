@@ -1,48 +1,78 @@
-/**
- * This screen is displayed once a user has logged in to Facebook and authorized our app.
- */
 Ext.define('JWF.view.Main', {
-    extend: 'Ext.Container',
-    requires: [
-        'JWF.view.run.List',
+    extend:'Ext.navigation.View',
+    xtype:'mainview',
+
+    requires:[
+        'JWF.view.post.List',
+        'JWF.view.post.Show',
+        'JWF.view.post.Edit',
         'JWF.view.NoFriends'
     ],
-
-    config: {
-        layout: 'card',
-
-        items: [
-            {
-                docked: 'top',
-                xtype: 'toolbar',
-                id: 'mainToolbar',
-                cls: 'jogToolbar',
-                items: [
-                    {   xtype: 'spacer'   },
-                    {
-                        xtype: 'button',
-                        cls: 'fbButton',
-                        iconCls: 'showFormBtn',
-                        id: 'showFormButton'
+    config:{
+        autoDestroy:false,
+        navigationBar:{
+            docked:'top',
+            id:'mainToolbar',
+            cls:'mkToolbar',
+            ui:'dark',
+            items:[
+                {
+                    xtype:'button',
+                    id:'editButton',
+                    text:'Edit',
+                    align:'right',
+                    hidden:true,
+                    hideAnimation:Ext.os.is.Android ? false : {
+                        type:'fadeOut',
+                        duration:200
                     },
-                    {
-                        xtype: 'button',
-                        cls: 'fbButton',
-                        iconCls: 'signoutBtn',
-                        id: 'signout'
+                    showAnimation:Ext.os.is.Android ? false : {
+                        type:'fadeIn',
+                        duration:200
                     }
-                ]
-            }
+                },
+                {
+                    xtype:'button',
+                    id:'saveButton',
+                    text:'Save',
+                    ui:'sencha',
+                    align:'right',
+                    hidden:true,
+                    hideAnimation:Ext.os.is.Android ? false : {
+                        type:'fadeOut',
+                        duration:200
+                    },
+                    showAnimation:Ext.os.is.Android ? false : {
+                        type:'fadeIn',
+                        duration:200
+                    }
+                },
+                {
+                    xtype:'button',
+                    cls:'fbButton',
+                    align:'right',
+                    iconCls:'showFormBtn',
+                    id:'showFormButton'
+                },
+                {
+                    xtype:'button',
+                    cls:'fbButton',
+                    align:'right',
+                    iconCls:'signoutBtn',
+                    id:'signout'
+                }
+            ]
+        },
+        items:[
+            { xtype:'posts' }
         ]
     },
 
-    initialize: function() {
+    initialize:function () {
         this.callParent();
-
-        // Enable the Tap event on the profile picture in the toolbar, so we can show a logout button
         var meta = Ext.getCmp('signout');
         if (meta) {
-            meta.element.on('tap', function(e) {
+            meta.element.on('tap', function (e) {
                 meta.fireEvent('tap', meta, e);
             });
         }
